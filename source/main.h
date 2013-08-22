@@ -32,5 +32,5 @@ struct BUILDING {
 	int gap;
 };
 
-//grit bg1.bmp bg2.bmp -gTff00ff -gB4 -ftc -mRtpf -pS
+//grit bg1.bmp bg2.bmp -gTff00ff -gB4 -mRtpf -pS
 //grit platforms.bmp -gTff00ff -gB4 -ftc
