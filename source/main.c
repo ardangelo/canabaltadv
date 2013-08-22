@@ -155,6 +155,8 @@ void game_loop() {
 		}
 
 		//key handling
+		c_x += 3*key_tri_horz();
+		c_x = inl_clamp(c_y, 0, 4*256);
 		c_y -= 3*key_tri_vert();
 		c_y = inl_clamp(c_y, -32, 64);
 		if (key_released(KEY_SELECT)) {
