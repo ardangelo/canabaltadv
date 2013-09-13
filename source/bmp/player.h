@@ -4,12 +4,11 @@
 //======================================================================
 //
 //	player, 16x1184@4, 
-//	Transparent palette entry: 0.
-//	+ palette 16 entries, not compressed
-//	+ 296 tiles Metatiled by 2x148 not compressed
-//	Total size: 32 + 9472 = 9504
+//	Transparent color : FF,00,FF
+//	+ 296 tiles not compressed
+//	Total size: 9472 = 9472
 //
-//	Time-stamp: 2013-07-21, 22:56:17
+//	Time-stamp: 2013-09-06, 16:47:24
 //	Exported by Cearn's GBA Image Transmogrifier, v0.8.10
 //	( http://www.coranac.com/projects/#grit )
 //
@@ -20,9 +19,6 @@
 
 #define playerTilesLen 9472
 extern const unsigned int playerTiles[2368];
-
-#define playerPalLen 32
-extern const unsigned short playerPal[16];
 
 #endif // GRIT_PLAYER_H
 

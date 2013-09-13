@@ -16,6 +16,8 @@
 
 #define MAXJUMPVEL 12
 
+#define SCORE_LEN 8
+
 #define BS1 8
 
 #define TL 12
@@ -34,3 +36,4 @@ struct BUILDING {
 
 //grit bg1.bmp bg2.bmp -gTff00ff -gB4 -mRtpf -pS
 //grit platforms.bmp -gTff00ff -gB4 -ftc
+//grit text.bmp player.bmp -ftc -pS -gTFF00FF

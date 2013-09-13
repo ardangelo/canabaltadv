@@ -15,6 +15,7 @@
 #include "bmp/platforms.h"
 
 #include "bmp/player.h"
+#include "bmp/text.h"
 
 OBJ_ATTR obj_buffer[128];
 OBJ_AFFINE *obj_aff_buffer= (OBJ_AFFINE*)obj_buffer;
@@ -41,6 +42,15 @@ inline int inl_clamp(int x, int lo, int hi) {
 	return x;
 }
 
+inline void score_to_tid(u32 *tid_array, int score) {
+	int i;
+	int pow10 = 1; //otherwise it goes too fast, change this to 1 if you want it as a debug display
+	for (i = SCORE_LEN-1;i>=0;i--) {
+		tid_array[i] = 37*8 + (int)((score/pow10)%10)*2;
+		pow10 *= 10;
+	}
+}
+
 inline unsigned int init_bg(
 	TILE* tile_mem_addr, const unsigned int* tiles, const unsigned int tileslen, 
 	const short unsigned int* map, int screenentrybegin, char charbaseblock) {
@@ -61,13 +71,17 @@ inline unsigned int init_bg(
 
 void generate_building(struct BUILDING *building) {
 	building->style = BS1;
-	building->length++;
-	building->height++;
-	building->gap = 2;
+	building->length = randint(11,13);
+	building->height = randint(6,9);
+	building->gap = randint(3,6);
+}
+
+void clear_buildings() {
+
+	memset(platformsMap,0,sizeof(platformsMap));
 }
 
 void append_building(struct BUILDING *building, int offset) {
-	memset(platformsMap,0,sizeof(platformsMap));
 	int i = 0, j = 0;
 
 	set_dtile(offset, 32-2*building->height, building->style + TL);
@@ -107,28 +121,42 @@ void vblank() {
 }
 
 void game_loop() {
-	int vcount = 0, bg_x = 0, ground;
-	int p_x = 0, p_y = 0, p_s = RUNNING;
+	int i = 0, vcount = 0, bg_x = 0, ground;
+	int p_x = 10, p_y = 0, p_s = RUNNING;
 	float p_v = 0;
 	u32 p_tid = 0, p_pb = 0;
 	int c_x = 0, c_y = 0;
 	u32 blend = 0x20;
+	u32 score = 0;
+	u32 digits_tid[SCORE_LEN];
 
 	struct BUILDING *current = malloc(sizeof(struct BUILDING));
+	struct BUILDING *next = malloc(sizeof(struct BUILDING));
 
 	int platforms_x = 0, platforms_y = 0;
 	
 	oam_init(obj_buffer, 128);
 	
-	current->height = 5;
-	current->length = 5;
 	generate_building(current);
 	append_building(current, 0);
 	ground = 256-current->height*16 - 96;
+	generate_building(next);
+	append_building(next, current->length + current->gap);
 	
 	OBJ_ATTR *player = &obj_buffer[0];
 	obj_set_attr(player, ATTR0_TALL, ATTR1_SIZE_32, ATTR2_PALBANK(p_pb) | p_tid);
 	obj_set_pos(player, p_x, p_y);
+
+	OBJ_ATTR *meter = &obj_buffer[1];
+	obj_set_attr(meter, ATTR0_TALL, ATTR1_SIZE_8, ATTR2_PALBANK(p_pb) | (316));
+	obj_set_pos(meter, (240-8*(SCORE_LEN+1))+8*SCORE_LEN, 0);
+
+	OBJ_ATTR *digits[SCORE_LEN];
+	for (i = 0;i<SCORE_LEN;i++) {
+		digits[i] = &obj_buffer[i+2];
+		obj_set_attr(digits[i], ATTR0_TALL, ATTR1_SIZE_8, ATTR2_PALBANK(p_pb) | digits_tid[i]);
+		obj_set_pos(digits[i], (240-8*(SCORE_LEN+1))+8*i, 0);
+	}
 
 	REG_BG3VOFS = 64;
 
@@ -145,9 +173,66 @@ void game_loop() {
     		blend--;
 		}
 
+		//check for ground
+		if (current->length*16 < platforms_x + (p_x+12)) {
+			ground = 256;
+		}
+
+		if (ground == 256) {
+			if ((current->length*16 + current->gap*16 - platforms_x) < p_x+8) {
+
+				//clear buildings and reset platforms_x to p_x
+				clear_buildings();
+				platforms_x = -(p_x+8);
+				//current = next
+				current = next;
+				//reset ground
+				ground = 256-current->height*16 - 96;
+				//place current at beginning
+				append_building(current,0);
+				//generate next
+				generate_building(next);
+				//place next
+				append_building(next, current->length + current->gap);
+			}
+		}
+
+		if (p_y > 200-16) {
+			swi_call(0x0);
+		}
+
+		//key handling
+		c_x += 3*key_tri_horz();
+		c_x = inl_clamp(c_y, 0, 4*256);
+		c_y -= 3*key_tri_vert();
+		c_y = inl_clamp(c_y, -32, 64);
+		if (key_released(KEY_SELECT)) {
+			p_y = -50;
+			generate_building(current);
+			append_building(current, 0);
+			ground = 256-current->height*16 - 96;
+		}
+		if (p_s == RUNNING || p_s == ROLLING) {
+			if (key_hit(KEY_A)) {
+				p_s = JUMPING;
+				p_tid = JUMPSTART;
+				p_v = 6;
+			}
+		} else if (p_s == JUMPING) {
+			//variable building->height jumping
+		}
+
 		//animation
+		score_to_tid(digits_tid,score);
+
 		if (!(vcount % 2)) {//EWW MOD
 			p_tid += 8;
+		}
+		
+		score += 3;
+		platforms_x += 3;
+		if (platforms_x > 512) {
+			platforms_x = 0;
 		}
 
 		if (p_s == RUNNING) {
@@ -188,28 +273,6 @@ void game_loop() {
 			p_tid = FALLSTART;
 		}
 
-		//key handling
-		c_x += 3*key_tri_horz();
-		c_x = inl_clamp(c_y, 0, 4*256);
-		c_y -= 3*key_tri_vert();
-		c_y = inl_clamp(c_y, -32, 64);
-		if (key_released(KEY_SELECT)) {
-			//swi_call(0x0);
-			p_y = -50;
-			generate_building(current);
-			append_building(current, 0);
-			ground = 256-current->height*16 - 96;
-		}
-		if (p_s == RUNNING || p_s == ROLLING) {
-			if (key_hit(KEY_A)) {
-				p_s = JUMPING;
-				p_tid = JUMPSTART;
-				p_v = 6;
-			}
-		} else if (p_s == JUMPING) {
-			//variable building->height jumping
-		}
-
 		bg_x++;
 		if (bg_x == 4*256)
 			bg_x = 0;
@@ -223,7 +286,15 @@ void game_loop() {
 
 		player->attr2= ATTR2_BUILD(p_tid, p_pb, 0);
 		obj_set_pos(player, p_x, p_y + c_y);
-		oam_copy(oam_mem, obj_buffer, 1); 
+
+		meter->attr2= ATTR2_BUILD(316, p_pb, 0);
+		obj_set_pos(meter, (240-8*(SCORE_LEN+1))+8*SCORE_LEN, 0);
+
+		for (i = 0;i<SCORE_LEN;i++) {
+			digits[i]->attr2= ATTR2_BUILD(digits_tid[i], p_pb, 0);
+			obj_set_pos(digits[i], (240-8*(SCORE_LEN+1))+8*i, 0);
+		}
+		oam_copy(oam_mem, obj_buffer, 2+SCORE_LEN); 
 
 		gamelogicRunning = 1;
 		if( kramWorkerCallNeeded ) {
@@ -252,11 +323,11 @@ int main() {
 	REG_BG3CNT = init_bg(&tile_mem[1][0],bg2Tiles,bg2TilesLen,bg2Map,28,1);
 
 	memcpy(pal_bg_bank[1],platformsPal,platformsPalLen);
-	se_mem[26][0] = SE_PALBANK(1); //a sad attempt at solving the palette problem
 	REG_BG1CNT = init_bg(&tile_mem[2][0],platformsTiles,platformsTilesLen,platformsMap,26,2);
 
 	memcpy(&tile_mem[4][0], playerTiles, playerTilesLen);
-	memcpy(pal_obj_mem, playerPal, playerPalLen);
+	memcpy(&tile_mem[4][37*8], textTiles, textTilesLen);
+	memcpy(pal_obj_mem, SharedObjPal, SharedObjPalLen);
 
 	kragInit( KRAG_INIT_STEREO );					// init krawall
 	krapPlay( &mod_sanic, KRAP_MODE_LOOP, 0 );	// play module
