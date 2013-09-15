@@ -181,6 +181,10 @@ void game_loop() {
 		if (ground == 256) {
 			if ((current->length*16 + current->gap*16 - platforms_x) < p_x+8) {
 
+				if (p_y - 16 > 256-next->height*16 - 96) { //16 for lenience
+					p_s = FALLING_TO_DEATH;
+				}
+
 				//clear buildings and reset platforms_x to p_x
 				clear_buildings();
 				platforms_x = -(p_x+8);
@@ -230,9 +234,11 @@ void game_loop() {
 		}
 		
 		score += 3;
-		platforms_x += 3;
-		if (platforms_x > 512) {
-			platforms_x = 0;
+		if (p_s != FALLING_TO_DEATH) {
+			platforms_x += 3;
+			if (platforms_x > 512) {
+				platforms_x = 0;
+			}
 		}
 
 		if (p_s == RUNNING) {
@@ -256,17 +262,19 @@ void game_loop() {
 		if (p_y != ground) {
 			p_v -= .5;
 		}
-		if (p_y > ground) {
-			if (p_v < -7) {
-				p_s = ROLLING;
-				p_tid = ROLLSTART;
-			} else {
-				p_s = RUNNING;
-				p_tid = RUNSTART;
+		if (p_s != FALLING_TO_DEATH) {
+			if (p_y > ground) {
+				if (p_v < -7) {
+					p_s = ROLLING;
+					p_tid = ROLLSTART;
+				} else {
+					p_s = RUNNING;
+					p_tid = RUNSTART;
+				}
+				
+				p_y = ground;
+				p_v = 0;
 			}
-			
-			p_y = ground;
-			p_v = 0;
 		}
 		if (p_v < 0 && p_s == JUMPING) {
 			p_s = FALLING;

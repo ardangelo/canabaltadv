@@ -14,6 +14,8 @@
 #define ROLLSTART 26*8
 #define ROLLFRAMES 11
 
+#define FALLING_TO_DEATH 8
+
 #define MAXJUMPVEL 12
 
 #define SCORE_LEN 8
@@ -34,6 +36,6 @@ struct BUILDING {
 	int gap;
 };
 
-//grit bg1.bmp bg2.bmp -gTff00ff -gB4 -mRtpf -pS
+//grit bg1.bmp bg2.bmp -gTff00ff -gB4 -mRtpf -pS -ftc
 //grit platforms.bmp -gTff00ff -gB4 -ftc
 //grit text.bmp player.bmp -ftc -pS -gTFF00FF
