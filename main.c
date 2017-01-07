@@ -7,6 +7,8 @@
 #include "tiles/bg.h"
 #include "tiles/sprites.h"
 
+#define SCR_AT(x,y) ((((x%64 > 32) ? 32*32 : 0) + (32*y) + x%32) % (64*32))
+
 int main(void) {
 
 	memcpy(pal_bg_mem, bgPal, bgPalLen); // load colors into bgpal
@@ -15,7 +17,7 @@ int main(void) {
 	memcpy(&tile_mem[0][0], bgTiles, bgTilesLen); // load tiles into charblocks
 	SCR_ENTRY *bg0_map = se_mem[30];
 	for (int i = 0; i < 32; i++) { // fill in top 32 tiles
-		bg0_map[32*i + i] = SE_PALBANK(0) | TILE_BUILD_S0;
+		bg0_map[SCR_AT(i,i)] = SE_PALBANK(0) | TILE_BUILD_S0;
 	}
 	REG_BG0CNT = BG_CBB(0) | BG_SBB(30) | BG_4BPP | BG_REG_64x32; // apply bg settings
 	
@@ -33,7 +35,7 @@ int main(void) {
 		if (changed > 0) {
 			int new_col = ((x + SCREEN_WIDTH) >> 3);
 			if (new_col >= horizon) {
-				bg0_map[((new_col%64 > 32) ? 32*32 : 0) + (32) + new_col%32] = SE_PALBANK(0) | TILE_BUILD_S0;
+				bg0_map[SCR_AT(new_col, 1)] = SE_PALBANK(0) | TILE_BUILD_S0;
 				horizon = new_col;
 			}
 		}
