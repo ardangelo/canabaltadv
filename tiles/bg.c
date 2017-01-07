@@ -1,0 +1,31 @@
+
+//{{BLOCK(bg)
+
+//======================================================================
+//
+//	bg, 16x8@4, 
+//	+ palette 16 entries, not compressed
+//	+ 2 tiles not compressed
+//	Total size: 32 + 64 = 96
+//
+//	Time-stamp: 2017-01-07, 14:48:36
+//	Exported by Cearn's GBA Image Transmogrifier, v0.8.6
+//	( http://www.coranac.com/projects/#grit )
+//
+//======================================================================
+
+const unsigned short bgTiles[32] __attribute__((aligned(4)))=
+{
+	0x5555,0x5555,0x5555,0x5555,0x5555,0x5555,0x5555,0x5555,
+	0x5555,0x5555,0x5555,0x5555,0x5555,0x5555,0x5555,0x5555,
+	0x7777,0x5555,0x7777,0x5555,0x7777,0x5555,0x7777,0x5555,
+	0x5555,0x7777,0x5555,0x7777,0x5555,0x7777,0x5555,0x7777,
+};
+
+const unsigned short bgPal[16] __attribute__((aligned(4)))=
+{
+	0x0000,0x0010,0x0200,0x0210,0x4000,0x4010,0x4200,0x4210,
+	0x6318,0x001F,0x03E0,0x03FF,0x7C00,0x7C1F,0x7FE0,0x7FFF,
+};
+
+//}}BLOCK(bg)
