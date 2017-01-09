@@ -27,7 +27,7 @@ uint32_t speed = 2;
 uint32_t player_x = 10;
 uint32_t player_y = 10;
 
-uint se_index_fast(uint tx, uint ty, u16 bgcnt) {
+inline uint se_index_fast(uint tx, uint ty, u16 bgcnt) {
 	uint n= tx + ty*32;
 	if(tx >= 32)
 		n += 0x03E0;
@@ -44,12 +44,7 @@ inline build generate_build() {
 void draw_col(SCR_ENTRY* map, uint32_t col) {
 	if (starts[curr_build] > col) {
 		return;
-	}/*
-	if (starts[(curr_build + 3) % 4] +
-	    WIDTH_OF(builds[(curr_build + 3) % 4]) +
-	    GAP_OF(builds[(curr_build + 3) % 4]) < col) {
-		return;
-		}*/
+	}
 	for (int i = 0; i < 4; i++) {
 		int bn = (curr_build + i) % 4;
 		build b = builds[bn];
@@ -64,7 +59,6 @@ void draw_col(SCR_ENTRY* map, uint32_t col) {
 			return;
 		}
 	}
-	map[se_index_fast(col, 5, REG_BG0CNT)] = SE_PALBANK(0) | TILE_BUILD_S0;
 }
 
 int main(void) {
