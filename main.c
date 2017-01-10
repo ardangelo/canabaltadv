@@ -14,7 +14,8 @@ typedef struct {
 	uint8_t style;
 } build;
 
-#define WORLD_HEIGHT 20
+// bg globals
+#define WORLD_HEIGHT 32
 
 build builds[4];
 uint32_t starts[4];
@@ -22,6 +23,10 @@ uint32_t curr_build = 0;
 
 #define CURR_BUILD (builds[curr_build])
 #define LAST_BUILD (builds[(curr_build + 3) % 4])
+
+// obj globals
+OBJ_ATTR obj_buffer[128];
+OBJ_AFFINE *obj_aff_buffer= (OBJ_AFFINE*)obj_buffer;
 
 uint32_t speed = 2;
 uint32_t player_x = 10;
@@ -37,7 +42,12 @@ inline uint se_index_fast(uint tx, uint ty, u16 bgcnt) {
 }
 
 inline build generate_build() {
-	build r = {8, 8, 3, 0};
+	uint8_t height = 20 + (rand() % 16 - 8);
+	uint8_t width = 24 + (rand() % 10 - 5);
+	uint8_t gap = 10 + (rand() % 8 - 4);
+	uint8_t style = 0;
+	
+	build r = {height, width, gap, style};
 	return r;
 }
 
@@ -85,7 +95,20 @@ int main(void) {
 	for (int col = 0; col <= (SCREEN_WIDTH >> 3); col++) {
 		draw_col(bg0_map, col);
 	}
-	REG_DISPCNT = DCNT_MODE0 | DCNT_BG0;
+	REG_DISPCNT = DCNT_MODE0 | DCNT_BG0 | DCNT_OBJ | DCNT_OBJ_1D;;
+
+	// load in the sprites
+	oam_init(obj_buffer, 128);
+	memcpy(pal_obj_mem, spritesPal, spritesPalLen);
+	memcpy(&tile_mem[4][0], spritesTiles, spritesTilesLen);
+
+	// set player sprite attrs
+	OBJ_ATTR *player = &obj_buffer[0];
+	obj_set_attr(player, 
+	             ATTR0_TALL,
+	             ATTR1_SIZE_8,
+	             ATTR2_PALBANK(0) | 0);
+	obj_set_pos(player, player_x, player_y);
 
 	// Scroll around some
 	int bg0_x = 0, bg0_y = 0;
@@ -99,8 +122,8 @@ int main(void) {
 		int changed = key_tri_horz();
 		bg0_x += changed * speed;
 		if (changed > 0) {
-			// generate new building if need be
-			if (((bg0_x + player_x) >> 3) + 1 > starts[curr_build] + CURR_BUILD.width + CURR_BUILD.gap) {
+			// generate new building if the current one is out of sight
+			if ((bg0_x >> 3) - 1 > starts[curr_build] + CURR_BUILD.width + CURR_BUILD.gap) {
 				starts[curr_build] = starts[(curr_build + 3) % 4] + LAST_BUILD.width + LAST_BUILD.gap;
 				builds[curr_build] = generate_build();
 				curr_build = (curr_build + 1) % 4;
@@ -114,8 +137,11 @@ int main(void) {
 			}
 		}
 
+		// update bg regs
 		REG_BG0HOFS = bg0_x;
 		REG_BG0VOFS = bg0_y;
+		// update oam
+		oam_copy(oam_mem, obj_buffer, 1);
 	}
 
 	return 0;
