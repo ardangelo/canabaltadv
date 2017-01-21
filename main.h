@@ -1,0 +1,13 @@
+#define TILE_METER_MARK 0
+#define TILE_ZERO 2
+
+#define TILE_RUNNING_F0 22
+
+#define TILE_TRANSPARENT 0
+#define TILE_BUILD_S0_TL 1
+#define TILE_BUILD_S0_TM 2
+#define TILE_BUILD_S0_TR 3
+#define TILE_BUILD_S0_BL 4
+#define TILE_BUILD_S0_BM 5
+#define TILE_BUILD_S0_BR 6
+#define TILE_SKY 7
