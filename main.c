@@ -50,9 +50,9 @@ inline uint se_index_fast(uint tx, uint ty, u16 bgcnt) {
 }
 
 inline build generate_build() {
-	uint8_t height = 14 + (rand() % 16 - 8);
+	uint8_t height = 14 + (rand() % 10 - 5);
 	uint8_t width = 24 + (rand() % 10 - 5);
-	uint8_t gap = 10 + (rand() % 8 - 4);
+	uint8_t gap = 15 + (rand() % 8 - 4);
 	uint8_t style = 0;
 	
 	build r = {height, width, gap, style};
@@ -200,7 +200,7 @@ int main(void) {
 		}
 		if (bg0_changed_x > 0) {
 			// check if we stepped off the edge
-			if (((bg0_x + player_x) >> 3) + 1 >= starts[curr_build] + CURR_BUILD.width) {
+			if (((bg0_x + player_x) >> 3) > starts[curr_build] + CURR_BUILD.width) {
 				ground = 0;
 			}
 			// check if we just entered a new building
@@ -224,7 +224,7 @@ int main(void) {
 
 		// update player state
 		if (player_state == RUNNING) { // should we start falling
-			if (player_height > ground) {
+			if (abs(player_height - ground) > 8) {
 				player_state = FALLING;
 				player_accel_y = .3;
 			}
@@ -243,14 +243,7 @@ int main(void) {
 				}
 			}
 		} else if (player_state == FALLING) { // did we hit the ground
-			if (abs(player_height - ground) <= TERMINAL_VELOCITY) {
-				player_state = RUNNING;
-				player_speed_y = 0;
-				player_accel_y = 0;
-				// player_height = ground;
-				player_y = 32*8 - ground - bg0_y - 16;
-			}
-			if (player_height <= TERMINAL_VELOCITY) {
+			if (player_height <= 8) {
 				player_state = DEAD;
 				player_speed_y = 0;
 				player_accel_y = 0;
@@ -260,6 +253,16 @@ int main(void) {
 				             ATTR2_PALBANK(0) | TILE_RUNNING_F0);
 				goto reset;
 			}
+		}
+		// snap to ground
+		if ((player_state != DEAD) &&
+		    (player_state != JUMPING) &&
+		    (abs(player_height - ground) <= 8)) {
+			player_state = RUNNING;
+			player_speed_y = 0;
+			player_accel_y = 0;
+			// player_height = ground;
+			player_y = 32*8 - ground - bg0_y - 16;
 		}
 		set_score(bg0_x / 10);
 
