@@ -2,6 +2,7 @@
 #include <tonc.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "main.h"
 #include "tiles/bg.h"
@@ -14,7 +15,9 @@ typedef struct {
 	uint8_t style;
 } build;
 
-enum player_states {RUNNING, JUMPING, FALLING, DEAD};
+enum player_states {RUNNING, JUMPING, FALLING, ROLLING, DEAD};
+
+uint32_t frame_count;
 
 // bg globals
 #define WORLD_HEIGHT 32
@@ -35,7 +38,8 @@ float scroll_speed_x = 5, scroll_speed_y = 5;
 int player_x = 10, player_y = 10;
 float player_speed_x = 0, player_speed_y = 0;
 float player_accel_x = 0, player_accel_y = 0;
-enum player_states player_state;
+enum player_states player_state, new_player_state;
+int anim_frame, anim_start, anim_len;
 
 OBJ_ATTR *player_obj;
 OBJ_ATTR *score_objs[8];
@@ -157,7 +161,7 @@ int main(void) {
 	obj_set_attr(player_obj, 
 	             ATTR0_TALL,
 	             ATTR1_SIZE_8,
-	             ATTR2_PALBANK(0) | TILE_RUNNING_F0);
+	             ATTR2_PALBANK(0) | TILE_RUNNING_START);
 	obj_set_pos(player_obj, player_x, player_y);
 
 	// set score sprites
@@ -175,6 +179,9 @@ int main(void) {
 	int ground = 8*CURR_BUILD.height;
 	int player_height = 32*8 - (bg0_y + player_y + 16);
 	player_state = RUNNING;
+	anim_frame = 0;
+	anim_start = TILE_RUNNING_START;
+	anim_len = ANIM_RUNNING_LEN;
 	while(1) {
 		vid_vsync();
 		key_poll();
@@ -225,17 +232,17 @@ int main(void) {
 		// update player state
 		if (player_state == RUNNING) { // should we start falling
 			if (abs(player_height - ground) > 8) {
-				player_state = FALLING;
+				new_player_state = FALLING;
 				player_accel_y = .3;
 			}
 			if (jump_requested) {
-				player_state = JUMPING;
+				new_player_state = JUMPING;
 				player_speed_y = -8;
 				player_accel_y = .3;
 			}
 		} else if (player_state == JUMPING) {
 			if (player_speed_y > 0) {
-				player_state = FALLING;
+				new_player_state = FALLING;
 			}
 			if (ascent_ended) {
 				if (player_speed_y < -4) {
@@ -244,27 +251,64 @@ int main(void) {
 			}
 		} else if (player_state == FALLING) { // did we hit the ground
 			if (player_height <= 8) {
-				player_state = DEAD;
+				new_player_state = DEAD;
 				player_speed_y = 0;
 				player_accel_y = 0;
-				obj_set_attr(player_obj, 
-				             ATTR0_TALL | ATTR0_HIDE,
-				             ATTR1_SIZE_8,
-				             ATTR2_PALBANK(0) | TILE_RUNNING_F0);
 				goto reset;
 			}
 		}
 		// snap to ground
-		if ((player_state != DEAD) &&
-		    (player_state != JUMPING) &&
-		    (abs(player_height - ground) <= 8)) {
-			player_state = RUNNING;
+		if ((new_player_state != DEAD) &&
+		    (new_player_state != JUMPING) &&
+		    (abs(player_height - ground) <= 4)) {
+			if (player_speed_y == TERMINAL_VELOCITY) {
+				new_player_state = ROLLING;
+			} else {
+				new_player_state = RUNNING;
+			}
 			player_speed_y = 0;
 			player_accel_y = 0;
 			// player_height = ground;
 			player_y = 32*8 - ground - bg0_y - 16;
 		}
-		set_score(bg0_x / 10);
+
+		// get next frame of animation
+		frame_count++;
+		if (player_state == new_player_state) {
+			if (player_state != JUMPING) {
+				if (frame_count % 2 == 0) {
+					anim_frame++;
+					anim_frame %= anim_len;
+					if ((new_player_state == ROLLING) && (anim_frame == 0)) {
+						new_player_state = RUNNING;
+					}
+				}
+			} else {
+				
+			}
+		} else {
+			anim_frame = 0;
+			if (new_player_state == RUNNING) {
+				anim_start = TILE_RUNNING_START;
+				anim_len = ANIM_RUNNING_LEN;
+			} else if (new_player_state == JUMPING) {
+				anim_start = TILE_JUMPING_START;
+				anim_len = ANIM_JUMPING_LEN;
+			} else if (new_player_state == FALLING) {
+				anim_start = TILE_FALLING_START;
+				anim_len = ANIM_FALLING_LEN;
+			} else if (new_player_state == ROLLING) {
+				anim_start = TILE_ROLLING_START;
+				anim_len = ANIM_ROLLING_LEN;
+			}
+			player_state = new_player_state;
+		}
+		set_score(player_state);
+		// apply frame
+		obj_set_attr(player_obj, 
+		             ATTR0_TALL | ((player_state == DEAD) ? ATTR0_HIDE : 0),
+		             ATTR1_SIZE_8,
+		             ATTR2_PALBANK(0) | (anim_start + 2*anim_frame));
 
 		// move player
 		player_height = 32*8 - (bg0_y + player_y + 16);
