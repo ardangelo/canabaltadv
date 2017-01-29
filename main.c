@@ -21,7 +21,8 @@ uint32_t frame_count;
 
 // bg globals
 #define WORLD_HEIGHT 32
-#define TERMINAL_VELOCITY 8
+#define GRAV .2
+#define TERMINAL_VELOCITY 30*GRAV
 
 build builds[4];
 uint32_t starts[4];
@@ -29,6 +30,10 @@ uint32_t curr_build = 0;
 
 #define CURR_BUILD (builds[curr_build])
 #define LAST_BUILD (builds[(curr_build + 3) % 4])
+
+#define BG0_HEIGHT 32
+#define BG0_WIDTH 64
+#define TILE2PIXEL(x) (x*8)
 
 // obj globals
 OBJ_ATTR obj_buffer[128];
@@ -55,7 +60,7 @@ inline uint se_index_fast(uint tx, uint ty, u16 bgcnt) {
 
 inline build generate_build() {
 	uint8_t height = 14 + (rand() % 10 - 5);
-	uint8_t width = 24 + (rand() % 10 - 5);
+	uint8_t width = 50 + (rand() % 10 - 5);
 	uint8_t gap = 15 + (rand() % 8 - 4);
 	uint8_t style = 0;
 	
@@ -176,8 +181,8 @@ int main(void) {
 	// Scroll around some
 	int bg0_x = 0, bg0_y = 0;
 	int horizon = (SCREEN_WIDTH >> 3);
-	int ground = 8*CURR_BUILD.height;
-	int player_height = 32*8 - (bg0_y + player_y + 16);
+	int ground = TILE2PIXEL(CURR_BUILD.height);
+	int player_height = TILE2PIXEL(BG0_HEIGHT) - (bg0_y + player_y + 16);
 	player_state = RUNNING;
 	anim_frame = 0;
 	anim_start = TILE_RUNNING_START;
@@ -230,23 +235,23 @@ int main(void) {
 		}
 
 		// update player state
-		if (player_state == RUNNING) { // should we start falling
-			if (abs(player_height - ground) > 8) {
+		if (player_state == RUNNING || player_state == ROLLING) { // should we start falling
+			if (abs(player_height - ground) > 0) {
 				new_player_state = FALLING;
-				player_accel_y = .3;
+				player_accel_y = GRAV;
 			}
 			if (jump_requested) {
 				new_player_state = JUMPING;
-				player_speed_y = -8;
-				player_accel_y = .3;
+				player_speed_y = -30*GRAV;
+				player_accel_y = GRAV;
 			}
 		} else if (player_state == JUMPING) {
 			if (player_speed_y > 0) {
 				new_player_state = FALLING;
 			}
 			if (ascent_ended) {
-				if (player_speed_y < -4) {
-					player_speed_y = -4;
+				if (player_speed_y < -13*GRAV) {
+					player_speed_y = -13*GRAV;
 				}
 			}
 		} else if (player_state == FALLING) { // did we hit the ground
@@ -257,34 +262,18 @@ int main(void) {
 				goto reset;
 			}
 		}
-		// snap to ground
-		if ((new_player_state != DEAD) &&
-		    (new_player_state != JUMPING) &&
-		    (abs(player_height - ground) <= 4)) {
-			if (player_speed_y == TERMINAL_VELOCITY) {
-				new_player_state = ROLLING;
-			} else {
-				new_player_state = RUNNING;
-			}
-			player_speed_y = 0;
-			player_accel_y = 0;
-			// player_height = ground;
-			player_y = 32*8 - ground - bg0_y - 16;
-		}
 
 		// get next frame of animation
 		frame_count++;
 		if (player_state == new_player_state) {
-			if (player_state != JUMPING) {
-				if (frame_count % 2 == 0) {
-					anim_frame++;
-					anim_frame %= anim_len;
-					if ((new_player_state == ROLLING) && (anim_frame == 0)) {
-						new_player_state = RUNNING;
-					}
+			if (frame_count % 2 == 0) {
+				anim_frame++;
+				anim_frame %= anim_len;
+				if ((player_state == ROLLING) && (anim_frame == 0)) {
+					new_player_state = RUNNING;
+					anim_start = TILE_RUNNING_START;
+					anim_len = ANIM_RUNNING_LEN;
 				}
-			} else {
-				
 			}
 		} else {
 			anim_frame = 0;
@@ -303,17 +292,32 @@ int main(void) {
 			}
 			player_state = new_player_state;
 		}
-		set_score(player_state);
-		// apply frame
+		set_score(bg0_x >> 3);
+
+		// move player
+		player_height = TILE2PIXEL(BG0_HEIGHT) - (bg0_y + player_y + 16);
+		player_speed_y = player_speed_y + player_accel_y;
+		player_y += (int)player_speed_y - bg0_changed_y;
+		
+		// snap to ground
+		if ((player_state == FALLING) &&
+		    (abs(player_height - ground) <= 4)) {
+			if (.9*TERMINAL_VELOCITY < player_speed_y) {
+				new_player_state = ROLLING;
+			} else {
+				new_player_state = RUNNING;
+			}
+			player_speed_y = 0;
+			player_accel_y = 0;
+			// player_height = ground;
+			player_y = TILE2PIXEL(BG0_HEIGHT) - (ground + bg0_y + 16);
+		}
+
+		// apply player attributes
 		obj_set_attr(player_obj, 
 		             ATTR0_TALL | ((player_state == DEAD) ? ATTR0_HIDE : 0),
 		             ATTR1_SIZE_8,
 		             ATTR2_PALBANK(0) | (anim_start + 2*anim_frame));
-
-		// move player
-		player_height = 32*8 - (bg0_y + player_y + 16);
-		player_speed_y = player_speed_y + player_accel_y;
-		player_y += (int)player_speed_y - bg0_changed_y;
 		obj_set_pos(player_obj, player_x, player_y);
 
 		// update bg regs
