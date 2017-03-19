@@ -5,24 +5,11 @@
 #include <string.h>
 
 #include "main.h"
+
 #include "tiles/bg.h"
 #include "tiles/sprites.h"
 
-typedef struct {
-	uint8_t height;
-	uint8_t width;
-	uint8_t gap;
-	uint8_t style;
-} build;
-
-enum player_states {RUNNING, JUMPING, FALLING, ROLLING, DEAD};
-
 uint32_t frame_count;
-
-// bg globals
-#define WORLD_HEIGHT 32
-#define GRAV .2
-#define TERMINAL_VELOCITY 30*GRAV
 
 build builds[4];
 uint32_t starts[4];
@@ -31,22 +18,13 @@ uint32_t curr_build = 0;
 #define CURR_BUILD (builds[curr_build])
 #define LAST_BUILD (builds[(curr_build + 3) % 4])
 
-#define BG0_HEIGHT 32
-#define BG0_WIDTH 64
-#define TILE2PIXEL(x) (x*8)
-
 // obj globals
 OBJ_ATTR obj_buffer[128];
 OBJ_AFFINE *obj_aff_buffer= (OBJ_AFFINE*)obj_buffer;
 
-float scroll_speed_x = 5, scroll_speed_y = 5;
-int player_x = 10, player_y = 10;
-float player_speed_x = 0, player_speed_y = 0;
-float player_accel_x = 0, player_accel_y = 0;
-enum player_states player_state, new_player_state;
-int anim_frame, anim_start, anim_len;
+camera cam;
+player guy;
 
-OBJ_ATTR *player_obj;
 OBJ_ATTR *score_objs[8];
 
 inline uint se_index_fast(uint tx, uint ty, u16 bgcnt) {
@@ -62,7 +40,7 @@ inline build generate_build() {
 	uint8_t height = 14 + (rand() % 10 - 5);
 	uint8_t width = 50 + (rand() % 10 - 5);
 	uint8_t gap = 15 + (rand() % 8 - 4);
-	uint8_t style = 0;
+	build_style style = BUILD_S0;
 	
 	build r = {height, width, gap, style};
 	return r;
@@ -80,19 +58,19 @@ void draw_col(SCR_ENTRY* map, uint32_t col) {
 			for (int row = 0; row < WORLD_HEIGHT; row++) {
 				if (row > (WORLD_HEIGHT - b.height)) {
 					if (col == starts[bn]) {
-						tile = TILE_BUILD_S0_BL;
+						tile = b.style.bl;
 					} else if ((col > starts[bn]) && (col < starts[bn] + b.width)) {
-						tile = TILE_BUILD_S0_BM;
+						tile = b.style.bm;
 					} else if (col == starts[bn] + b.width) {
-						tile = TILE_BUILD_S0_BR;
+						tile = b.style.br;
 					}
 				} else if (row == (WORLD_HEIGHT - b.height)) {
 					if (col == starts[bn]) {
-						tile = TILE_BUILD_S0_TL;
+						tile = b.style.tl;
 					} else if ((col > starts[bn]) && (col < starts[bn] + b.width)) {
-						tile = TILE_BUILD_S0_TM;
+						tile = b.style.tm;
 					} else if (col == starts[bn] + b.width) {
-						tile = TILE_BUILD_S0_TR;
+						tile = b.style.tr;
 					}
 				} else {
 					tile = TILE_TRANSPARENT;
@@ -126,12 +104,9 @@ int main(void) {
 
  reset:
 
-	scroll_speed_x = 5;
-	scroll_speed_y = 5;
-	player_x = 10, player_y = 10;
-	player_speed_x = 0, player_speed_y = 0;
-	player_accel_x = 0, player_accel_y = 0;
-
+	cam = (camera){0, 0, 5, 5};
+	guy = (player){NULL, 10, 10, 150, 0, 0, 0, 0, RUN, ANIM_RUN, 0, 0, 0};
+	
 	// generate the starting buildings
 	curr_build = 0;
 	starts[0] = 0;
@@ -162,12 +137,12 @@ int main(void) {
 	memcpy(&tile_mem[4][0], spritesTiles, spritesTilesLen);
 
 	// set player sprite attrs
-	player_obj = &obj_buffer[0];
-	obj_set_attr(player_obj, 
+	guy.obj = &obj_buffer[0];
+	obj_set_attr(guy.obj, 
 	             ATTR0_TALL,
 	             ATTR1_SIZE_8,
-	             ATTR2_PALBANK(0) | TILE_RUNNING_START);
-	obj_set_pos(player_obj, player_x, player_y);
+	             ATTR2_PALBANK(0) | guy.anim.start);
+	obj_set_pos(guy.obj, guy.x, guy.y);
 
 	// set score sprites
 	for (int i = 0; i < 8; i++) { score_objs[i] = &obj_buffer[1+i]; }
@@ -179,44 +154,32 @@ int main(void) {
 	obj_set_pos(score_objs[0], SCREEN_WIDTH - 8, 0);
 
 	// Scroll around some
-	int bg0_x = 0, bg0_y = 0;
 	int horizon = (SCREEN_WIDTH >> 3);
 	int ground = TILE2PIXEL(CURR_BUILD.height);
-	int player_height = TILE2PIXEL(BG0_HEIGHT) - (bg0_y + player_y + 16);
-	player_state = RUNNING;
-	anim_frame = 0;
-	anim_start = TILE_RUNNING_START;
-	anim_len = ANIM_RUNNING_LEN;
+
 	while(1) {
 		vid_vsync();
 		key_poll();
 
-		int bg0_changed_x = key_tri_horz() * scroll_speed_x;
-		int bg0_changed_y = 0;
-		if ((abs(player_y - SCREEN_HEIGHT) < 80) ||
-		    (player_y < 80)) {
-			bg0_changed_y = player_speed_y;
+		int cam_delta_x = key_tri_horz() * cam.vx;
+		int cam_delta_y = 0;
+		if ((guy.y < 40) || (guy.y > (SCREEN_HEIGHT - 80))) {
+			cam_delta_y =- guy.vy;
 		}
 		int jump_requested = key_hit(KEY_A);
 		int ascent_ended = key_released(KEY_A);
 		
-		bg0_x += bg0_changed_x;
-		if (bg0_y + bg0_changed_y < 0) {
-			bg0_y = 0;
-			bg0_changed_y = 0;
-		} else if (bg0_y + SCREEN_HEIGHT + bg0_changed_y > 32*8) {
-			bg0_y = 32*8 - SCREEN_HEIGHT;
-			bg0_changed_y = 0;
-		} else {
-			bg0_y += bg0_changed_y;
-		}
-		if (bg0_changed_x > 0) {
+		cam.x += cam_delta_x;
+		cam.y += cam_delta_y;
+		cam.y = CLAMP(cam.y, 0, 32*8 - SCREEN_HEIGHT);
+		
+		if (cam_delta_x > 0) {
 			// check if we stepped off the edge
-			if (((bg0_x + player_x) >> 3) > starts[curr_build] + CURR_BUILD.width) {
+			if (((cam.x + guy.x) >> 3) > starts[curr_build] + CURR_BUILD.width) {
 				ground = 0;
 			}
 			// check if we just entered a new building
-			if (((bg0_x + player_x) >> 3) + 1 >= starts[curr_build] + CURR_BUILD.width + CURR_BUILD.gap) {
+			if (((cam.x + guy.x) >> 3) + 1 >= starts[curr_build] + CURR_BUILD.width + CURR_BUILD.gap) {
 				// generate new building and advance
 				starts[curr_build] = starts[(curr_build + 3) % 4] + LAST_BUILD.width + LAST_BUILD.gap;
 				builds[curr_build] = generate_build();
@@ -227,7 +190,7 @@ int main(void) {
 			}
 
 			// draw just beyond the horizon
-			int new_col = ((bg0_x + SCREEN_WIDTH) >> 3) + 1;
+			int new_col = ((cam.x + SCREEN_WIDTH) >> 3) + 1;
 			if (new_col > horizon) {
 				draw_col(bg0_map, new_col);
 				horizon = new_col;
@@ -235,94 +198,91 @@ int main(void) {
 		}
 
 		// update player state
-		if (player_state == RUNNING || player_state == ROLLING) { // should we start falling
-			if (abs(player_height - ground) > 0) {
-				new_player_state = FALLING;
-				player_accel_y = GRAV;
+		int new_state;
+		if (guy.state == RUN || guy.state == ROLL) { // should we start falling
+			if (abs(guy.height - ground) > 0) {
+				new_state = FALL;
+				guy.ay = GRAV;
 			}
 			if (jump_requested) {
-				new_player_state = JUMPING;
-				player_speed_y = -30*GRAV;
-				player_accel_y = GRAV;
+				new_state = JUMP;
+				guy.vy = -30*GRAV;
+				guy.ay = GRAV;
 			}
-		} else if (player_state == JUMPING) {
-			if (player_speed_y > 0) {
-				new_player_state = FALLING;
+		} else if (guy.state == JUMP) {
+			if (guy.vy < 0) {
+				new_state = FALL;
 			}
 			if (ascent_ended) {
-				if (player_speed_y < -13*GRAV) {
-					player_speed_y = -13*GRAV;
-				}
+				guy.vy = MIN(guy.vy, -13*GRAV);
 			}
-		} else if (player_state == FALLING) { // did we hit the ground
-			if (player_height <= 8) {
-				new_player_state = DEAD;
-				player_speed_y = 0;
-				player_accel_y = 0;
+		} else if (guy.state == FALL) { // did we hit the ground
+			if (guy.height <= 8) {
+				new_state = DEAD;
+				guy.vy = 0;
+				guy.ay = 0;
 				goto reset;
 			}
 		}
 
 		// get next frame of animation
 		frame_count++;
-		if (player_state == new_player_state) {
+		if (guy.state == new_state) {
 			if (frame_count % 2 == 0) {
-				anim_frame++;
-				anim_frame %= anim_len;
-				if ((player_state == ROLLING) && (anim_frame == 0)) {
-					new_player_state = RUNNING;
-					anim_start = TILE_RUNNING_START;
-					anim_len = ANIM_RUNNING_LEN;
+				guy.anim.frame++;
+				guy.anim.frame %= guy.anim.len;
+				if ((guy.state == ROLL) && (guy.anim.frame == 0)) {
+					new_state = RUN;
+					guy.anim = ANIM_RUN;
 				}
 			}
 		} else {
-			anim_frame = 0;
-			if (new_player_state == RUNNING) {
-				anim_start = TILE_RUNNING_START;
-				anim_len = ANIM_RUNNING_LEN;
-			} else if (new_player_state == JUMPING) {
-				anim_start = TILE_JUMPING_START;
-				anim_len = ANIM_JUMPING_LEN;
-			} else if (new_player_state == FALLING) {
-				anim_start = TILE_FALLING_START;
-				anim_len = ANIM_FALLING_LEN;
-			} else if (new_player_state == ROLLING) {
-				anim_start = TILE_ROLLING_START;
-				anim_len = ANIM_ROLLING_LEN;
+			switch (new_state) {
+			case RUN:
+				guy.anim = ANIM_RUN; break;
+			case JUMP:
+				guy.anim = ANIM_RUN; break;
+			case FALL:
+				guy.anim = ANIM_FALL; break;
+			case ROLL:
+				guy.anim = ANIM_ROLL; break;
+			default: break;
 			}
-			player_state = new_player_state;
+			guy.state = new_state;
 		}
-		set_score(bg0_x >> 3);
+		set_score(cam.x >> 3);
 
 		// move player
-		player_height = TILE2PIXEL(BG0_HEIGHT) - (bg0_y + player_y + 16);
-		player_speed_y = player_speed_y + player_accel_y;
-		player_y += (int)player_speed_y - bg0_changed_y;
+		guy.vy += guy.ay;
+		guy.height += (int)guy.vy;
 		
 		// snap to ground
-		if ((player_state == FALLING) &&
-		    (abs(player_height - ground) <= 4)) {
-			if (.9*TERMINAL_VELOCITY < player_speed_y) {
-				new_player_state = ROLLING;
+		if ((guy.state == FALL) &&
+		    (abs(guy.height - ground) <= 4)) {
+			if (.9*TERMINAL_VELOCITY > guy.vy) {
+				new_state = ROLL;
 			} else {
-				new_player_state = RUNNING;
+				new_state = RUN;
 			}
-			player_speed_y = 0;
-			player_accel_y = 0;
-			// player_height = ground;
-			player_y = TILE2PIXEL(BG0_HEIGHT) - (ground + bg0_y + 16);
+			guy.vy = 0;
+			guy.ay = 0;
+			// guy.height = ground;
+			guy.height = ground;
 		}
 
+		// calculate position on screen
+		guy.y = TILE2PIXEL(BG0_HEIGHT) - (cam.y + guy.height + 16);
+
 		// apply player attributes
-		obj_set_attr(player_obj, 
-		             ATTR0_TALL | ((player_state == DEAD) ? ATTR0_HIDE : 0),
+		obj_set_attr(guy.obj, 
+		             ATTR0_TALL | ((guy.state == DEAD) ? ATTR0_HIDE : 0),
 		             ATTR1_SIZE_8,
-		             ATTR2_PALBANK(0) | (anim_start + 2*anim_frame));
-		obj_set_pos(player_obj, player_x, player_y);
+		             ATTR2_PALBANK(0) | (guy.anim.start + 2*guy.anim.frame));
+		obj_set_pos(guy.obj, guy.x, guy.y);
 
 		// update bg regs
-		REG_BG0HOFS = bg0_x;
-		REG_BG0VOFS = bg0_y;
+		REG_BG0HOFS = cam.x;
+		REG_BG0VOFS = cam.y;
 		// update oam
 		oam_copy(oam_mem, obj_buffer, 9);
 	}
