@@ -111,12 +111,10 @@ int main(void) {
 	curr_build = 0;
 	starts[0] = 0;
 	builds[0] = generate_build();
-	starts[1] = starts[0] + builds[0].width + builds[0].gap;
-	builds[1] = generate_build();
-	starts[2] = starts[1] + builds[1].width + builds[1].gap;
-	builds[2] = generate_build();
-	starts[3] = starts[2] + builds[2].width + builds[2].gap;
-	builds[3] = generate_build();
+	for (int i = 1; i < 4; i++) {
+		starts[i] = starts[i-1] + builds[i-1].width + builds[i-1].gap;
+		builds[i] = generate_build();
+	}
 
 	// fill in the initial bg0
 	REG_BG0CNT = BG_PRIO(0) | BG_CBB(0) | BG_SBB(30) | BG_4BPP | BG_REG_64x32; // apply bg settings
@@ -155,7 +153,7 @@ int main(void) {
 
 	// Scroll around some
 	int horizon = (SCREEN_WIDTH >> 3);
-	int ground = TILE2PIXEL(CURR_BUILD.height);
+	int ground = PIXEL(CURR_BUILD.height);
 
 	while(1) {
 		vid_vsync();
@@ -163,7 +161,7 @@ int main(void) {
 
 		int cam_delta_x = key_tri_horz() * cam.vx;
 		int cam_delta_y = 0;
-		if ((guy.y < 40) || (guy.y > (SCREEN_HEIGHT - 80))) {
+		if ((guy.y < UPPER_SLACK) || (guy.y > (SCREEN_HEIGHT - LOWER_SLACK))) { 
 			cam_delta_y =- guy.vy;
 		}
 		int jump_requested = key_hit(KEY_A);
@@ -171,13 +169,11 @@ int main(void) {
 		
 		cam.x += cam_delta_x;
 		cam.y += cam_delta_y;
-		cam.y = CLAMP(cam.y, 0, 32*8 - SCREEN_HEIGHT);
+		cam.y = CLAMP(cam.y, 0, PIXEL(WORLD_HEIGHT) - SCREEN_HEIGHT);
 		
 		if (cam_delta_x > 0) {
 			// check if we stepped off the edge
-			if (((cam.x + guy.x) >> 3) > starts[curr_build] + CURR_BUILD.width) {
-				ground = 0;
-			}
+			if (((cam.x + guy.x) >> 3) > starts[curr_build] + CURR_BUILD.width) { ground = 0; }
 			// check if we just entered a new building
 			if (((cam.x + guy.x) >> 3) + 1 >= starts[curr_build] + CURR_BUILD.width + CURR_BUILD.gap) {
 				// generate new building and advance
@@ -199,30 +195,32 @@ int main(void) {
 
 		// update player state
 		int new_state;
-		if (guy.state == RUN || guy.state == ROLL) { // should we start falling
+		switch (guy.state) {
+		case RUN:
+		case ROLL:  // should we start falling
 			if (abs(guy.height - ground) > 0) {
 				new_state = FALL;
 				guy.ay = GRAV;
 			}
 			if (jump_requested) {
 				new_state = JUMP;
-				guy.vy = -30*GRAV;
+				guy.vy = JUMP_START_VEL;
 				guy.ay = GRAV;
 			}
-		} else if (guy.state == JUMP) {
-			if (guy.vy < 0) {
-				new_state = FALL;
-			}
-			if (ascent_ended) {
-				guy.vy = MIN(guy.vy, -13*GRAV);
-			}
-		} else if (guy.state == FALL) { // did we hit the ground
-			if (guy.height <= 8) {
+			break;
+		case JUMP:
+			if (guy.vy < 0) { new_state = FALL; }
+			if (ascent_ended) { guy.vy = MIN(guy.vy, JUMP_END_VEL); }
+			break;
+		case FALL: // did we hit the ground
+			if (guy.height <= DEATH_BOUNDARY) {
 				new_state = DEAD;
 				guy.vy = 0;
 				guy.ay = 0;
 				goto reset;
 			}
+			break;
+		default: break;
 		}
 
 		// get next frame of animation
@@ -258,8 +256,8 @@ int main(void) {
 		
 		// snap to ground
 		if ((guy.state == FALL) &&
-		    (abs(guy.height - ground) <= 4)) {
-			if (.9*TERMINAL_VELOCITY > guy.vy) {
+		    (abs(guy.height - ground) <= GROUND_THRESH)) {
+			if (ROLL_THRESH > guy.vy) {
 				new_state = ROLL;
 			} else {
 				new_state = RUN;
@@ -271,7 +269,7 @@ int main(void) {
 		}
 
 		// calculate position on screen
-		guy.y = TILE2PIXEL(BG0_HEIGHT) - (cam.y + guy.height + 16);
+		guy.y = PIXEL(BG0_HEIGHT) - (cam.y + guy.height + PIXEL(2));
 
 		// apply player attributes
 		obj_set_attr(guy.obj, 

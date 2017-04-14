@@ -29,14 +29,23 @@ typedef struct {
 } build;
 
 // graphics info
-#define BG0_HEIGHT 32
-#define BG0_WIDTH 64
-#define TILE2PIXEL(x) (x*8)
+#define PIXEL(x) (x*8)
 
 // bg globals
 #define WORLD_HEIGHT 32
+#define BG0_HEIGHT 32
+#define BG0_WIDTH 64
+
+// tunables
+#define UPPER_SLACK 40
+#define LOWER_SLACK 80
 #define GRAV -.2
 #define TERMINAL_VELOCITY 30*GRAV
+#define JUMP_START_VEL -30*GRAV
+#define JUMP_END_VEL -13*GRAV
+#define DEATH_BOUNDARY 8
+#define ROLL_THRESH .9*TERMINAL_VELOCITY
+#define GROUND_THRESH 4
 
 // animation stuff
 
