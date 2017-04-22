@@ -17,8 +17,12 @@ ROMNAME := canabalt
 all: $(ROMNAME).gba
 
 # compile the gfx resources
-bg.o : tiles/bg.c
-	arm-none-eabi-gcc $(CFLAGS) -c tiles/bg.c -o bg.o
+buildings.o : tiles/buildings.c
+	arm-none-eabi-gcc $(CFLAGS) -c tiles/buildings.c -o buildings.o
+midground.o : tiles/midground.c
+	arm-none-eabi-gcc $(CFLAGS) -c tiles/midground.c -o midground.o
+background.o : tiles/background.c
+	arm-none-eabi-gcc $(CFLAGS) -c tiles/background.c -o background.o
 sprites.o : tiles/sprites.c
 	arm-none-eabi-gcc $(CFLAGS) -c tiles/sprites.c -o sprites.o
 
@@ -27,8 +31,8 @@ main.o : main.c
 	arm-none-eabi-gcc $(CFLAGS) -c main.c -o main.o
 
 # link objects into an elf
-$(ROMNAME).elf : main.o bg.o sprites.o
-	arm-none-eabi-gcc main.o bg.o sprites.o $(LDFLAGS) -o $(ROMNAME).elf
+$(ROMNAME).elf : main.o buildings.o midground.o background.o sprites.o
+	arm-none-eabi-gcc main.o buildings.o midground.o background.o sprites.o $(LDFLAGS) -o $(ROMNAME).elf
 
 # objcopy and fix the rom
 $(ROMNAME).gba : $(ROMNAME).elf

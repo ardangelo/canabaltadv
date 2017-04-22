@@ -6,12 +6,14 @@
 
 #include "main.h"
 
-#include "tiles/bg.h"
+#include "tiles/buildings.h"
+#include "tiles/midground.h"
+#include "tiles/background.h"
 #include "tiles/sprites.h"
 
 uint32_t frame_count;
 
-build builds[4];
+build_t builds[4];
 uint32_t starts[4];
 uint32_t curr_build = 0;
 
@@ -21,9 +23,10 @@ uint32_t curr_build = 0;
 // obj globals
 OBJ_ATTR obj_buffer[128];
 OBJ_AFFINE *obj_aff_buffer= (OBJ_AFFINE*)obj_buffer;
+int active_objs = 16; // 1 for player and 8 for score segments
 
-camera cam;
-player guy;
+camera_t cam;
+player_t guy;
 
 OBJ_ATTR *score_objs[8];
 
@@ -36,14 +39,14 @@ inline uint se_index_fast(uint tx, uint ty, u16 bgcnt) {
 	return n;
 }
 
-inline build generate_build() {
+inline build_t generate_build() {
 	uint8_t height = 14 + (rand() % 10 - 5);
 	uint8_t width = 50 + (rand() % 10 - 5);
 	uint8_t gap = 15 + (rand() % 8 - 4);
-	build_style style = BUILD_S0;
+	build_style_t style = BUILD_S0;
+	crate_t crate = (crate_t){NULL, 0, 0, PIXEL(height), 0, 0, 0, TILE_METER_MARK};
 	
-	build r = {height, width, gap, style};
-	return r;
+	return (build_t){height, width, gap, style, crate};
 }
 
 void draw_col(SCR_ENTRY* map, uint32_t col) {
@@ -52,25 +55,25 @@ void draw_col(SCR_ENTRY* map, uint32_t col) {
 	}
 	for (int i = 0; i < 4; i++) {
 		int bn = (curr_build + i) % 4;
-		build b = builds[bn];
-		if ((starts[bn] <= col) && (col < starts[bn] + b.width + b.gap)) {
+		build_t *b = &builds[bn];
+		if ((starts[bn] <= col) && (col < starts[bn] + b->width + b->gap)) {
 			uint16_t tile = TILE_TRANSPARENT;
 			for (int row = 0; row < WORLD_HEIGHT; row++) {
-				if (row > (WORLD_HEIGHT - b.height)) {
+				if (row > (WORLD_HEIGHT - b->height)) {
 					if (col == starts[bn]) {
-						tile = b.style.bl;
-					} else if ((col > starts[bn]) && (col < starts[bn] + b.width)) {
-						tile = b.style.bm;
-					} else if (col == starts[bn] + b.width) {
-						tile = b.style.br;
+						tile = b->style.bl;
+					} else if ((col > starts[bn]) && (col < starts[bn] + b->width)) {
+						tile = b->style.bm;
+					} else if (col == starts[bn] + b->width) {
+						tile = b->style.br;
 					}
-				} else if (row == (WORLD_HEIGHT - b.height)) {
+				} else if (row == (WORLD_HEIGHT - b->height)) {
 					if (col == starts[bn]) {
-						tile = b.style.tl;
-					} else if ((col > starts[bn]) && (col < starts[bn] + b.width)) {
-						tile = b.style.tm;
-					} else if (col == starts[bn] + b.width) {
-						tile = b.style.tr;
+						tile = b->style.tl;
+					} else if ((col > starts[bn]) && (col < starts[bn] + b->width)) {
+						tile = b->style.tm;
+					} else if (col == starts[bn] + b->width) {
+						tile = b->style.tr;
 					}
 				} else {
 					tile = TILE_TRANSPARENT;
@@ -95,17 +98,24 @@ static inline void set_score(uint32_t score) {
 
 int main(void) {
 
-	memcpy(pal_bg_mem, bgPal, bgPalLen); // load colors into bgpal
+	// set up backgrounds tiles
+	memcpy(pal_bg_bank[0], buildingsPal, buildingsPalLen); // load colors into bgpal
+	memcpy(pal_bg_bank[1], midgroundPal, midgroundPalLen);
+	memcpy(pal_bg_bank[2], backgroundPal, backgroundPalLen);
+	// 26-33 as screenblocks. 4 bits per pixel, 64x32 tiles
+	// use block 0 as tile charblock
+	memcpy(&tile_mem[0][0], buildingsTiles, buildingsTilesLen); // block 1 as midground charblock
+	memcpy(&tile_mem[1][0], midgroundTiles, midgroundTilesLen); // block 2 background charblock
+	memcpy(&tile_mem[2][0], backgroundTiles, backgroundTilesLen); 
 
-	// use block 0 as charblock, 26-33 as screenblocks. 4 bits per pixel, 64x32 tiles
-	memcpy(&tile_mem[0][0], bgTiles, bgTilesLen); // load tiles into charblocks
 	SCR_ENTRY *bg0_map = se_mem[30];
-	SCR_ENTRY *bg1_map = se_mem[26];
+	SCR_ENTRY *bg1_map = se_mem[28];
+	SCR_ENTRY *bg2_map = se_mem[26];
 
  reset:
 
-	cam = (camera){0, 0, 5, 5};
-	guy = (player){NULL, 10, 10, 150, 0, 0, 0, 0, RUN, ANIM_RUN, 0, 0, 0};
+	cam = (camera_t){0, 0, 5, 5};
+	guy = (player_t){NULL, 10, 10, 150, 0, 0, 0, 0, RUN, ANIM_RUN, 0, 0, 0};
 	
 	// generate the starting buildings
 	curr_build = 0;
@@ -122,12 +132,17 @@ int main(void) {
 		draw_col(bg0_map, col);
 	}
 
-	// fill in the scenery bg1
-	REG_BG1CNT = BG_PRIO(1) | BG_CBB(0) | BG_SBB(26) | BG_4BPP | BG_REG_64x32;
-	for (int i = 0; i < 32*64; i++) {
-		bg1_map[i] = SE_PALBANK(0) | TILE_SKY;
+	// fill in the midground bg1 and background bg2
+	REG_BG1CNT = BG_PRIO(1) | BG_CBB(1) | BG_SBB(28) | BG_4BPP | BG_REG_64x32;
+	REG_BG2CNT = BG_PRIO(2) | BG_CBB(2) | BG_SBB(26) | BG_4BPP | BG_REG_64x32;
+	for (int i = 0; i < 64; i++) {
+		for (int j = 0; j < 32; j++) {
+			bg1_map[se_index_fast(i, j, REG_BG1CNT)] = SE_PALBANK(1) | midgroundMap[64*j+i];
+			bg2_map[se_index_fast(i, j, REG_BG2CNT)] = SE_PALBANK(2) | backgroundMap[64*j+i];
+		}
 	}
-	REG_DISPCNT = DCNT_MODE0 | DCNT_BG0 | DCNT_BG1 | DCNT_OBJ | DCNT_OBJ_1D;;
+
+	REG_DISPCNT = DCNT_MODE0 | DCNT_BG0 | DCNT_BG1 | DCNT_BG2 | DCNT_OBJ | DCNT_OBJ_1D;
 
 	// load in the sprites
 	oam_init(obj_buffer, 128);
@@ -172,17 +187,43 @@ int main(void) {
 		cam.y = CLAMP(cam.y, 0, PIXEL(WORLD_HEIGHT) - SCREEN_HEIGHT);
 		
 		if (cam_delta_x > 0) {
+			// did we hit a crate?
+			if (abs(guy.x - (CURR_BUILD.crate.x % PIXEL(32))) <= PIXEL(1)) {
+				CURR_BUILD.crate.hit = 1;
+			}
+			
 			// check if we stepped off the edge
 			if (((cam.x + guy.x) >> 3) > starts[curr_build] + CURR_BUILD.width) { ground = 0; }
 			// check if we just entered a new building
 			if (((cam.x + guy.x) >> 3) + 1 >= starts[curr_build] + CURR_BUILD.width + CURR_BUILD.gap) {
+				// kill crate object if need to
+				if (CURR_BUILD.crate.obj) {
+					obj_set_attr(CURR_BUILD.crate.obj, 
+					             ATTR0_TALL | ATTR0_HIDE,
+					             ATTR1_SIZE_8,
+					             ATTR2_PALBANK(0));
+					CURR_BUILD.crate.obj = NULL;
+				}
+				
 				// generate new building and advance
 				starts[curr_build] = starts[(curr_build + 3) % 4] + LAST_BUILD.width + LAST_BUILD.gap;
 				builds[curr_build] = generate_build();
 				curr_build = (curr_build + 1) % 4;
 
+				// create crate object if need to
+				if (1){//CURR_BUILD.crate.y) {
+					crate_t *c = &CURR_BUILD.crate;
+					c->obj = &obj_buffer[10];
+					obj_set_attr(c->obj, 
+					             ATTR0_TALL | 0,//ATTR0_HIDE,
+					             ATTR1_SIZE_8,
+					             ATTR2_PALBANK(0) | c->style);
+					c->x = starts[curr_build] + PIXEL(c->offset);
+					c->height = PIXEL(CURR_BUILD.height);
+				}
+
 				// update ground level
-				ground = 8*CURR_BUILD.height;
+				ground = PIXEL(CURR_BUILD.height);
 			}
 
 			// draw just beyond the horizon
@@ -248,7 +289,6 @@ int main(void) {
 			}
 			guy.state = new_state;
 		}
-		set_score(cam.x >> 3);
 
 		// move player
 		guy.vy += guy.ay;
@@ -278,11 +318,31 @@ int main(void) {
 		             ATTR2_PALBANK(0) | (guy.anim.start + 2*guy.anim.frame));
 		obj_set_pos(guy.obj, guy.x, guy.y);
 
+		// apply crate attributes
+		if (CURR_BUILD.crate.obj) {
+			if (CURR_BUILD.crate.hit) {
+				CURR_BUILD.crate.vy -= GRAV;
+				CURR_BUILD.crate.y += CURR_BUILD.crate.vy;
+			} else {
+				CURR_BUILD.crate.y = PIXEL(BG0_HEIGHT) - (cam.y + CURR_BUILD.crate.height + PIXEL(2));
+			}
+			CURR_BUILD.crate.x = (starts[curr_build] + PIXEL(CURR_BUILD.crate.offset)) - cam.x;
+			obj_set_pos(CURR_BUILD.crate.obj,
+			            CURR_BUILD.crate.x,
+			            CURR_BUILD.crate.y);
+		}
+		
+		set_score(CURR_BUILD.crate.hit);//cam.x >> 3);
+
 		// update bg regs
 		REG_BG0HOFS = cam.x;
 		REG_BG0VOFS = cam.y;
+		REG_BG1HOFS = cam.x * BG1_SCROLL_RATE;
+		REG_BG1VOFS = cam.y * BG1_SCROLL_RATE + BG1_YOFFS;
+		REG_BG2HOFS = cam.x * BG2_SCROLL_RATE;
+		REG_BG2VOFS = cam.y * BG2_SCROLL_RATE + BG2_YOFFS;
 		// update oam
-		oam_copy(oam_mem, obj_buffer, 9);
+		oam_copy(oam_mem, obj_buffer, active_objs);
 	}
 
 	return 0;

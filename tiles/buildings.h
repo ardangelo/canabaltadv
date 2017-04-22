@@ -1,9 +1,9 @@
 
-//{{BLOCK(bg)
+//{{BLOCK(buildings)
 
 //======================================================================
 //
-//	bg, 64x8@4, 
+//	buildings, 64x8@4, 
 //	+ palette 16 entries, not compressed
 //	+ 8 tiles not compressed
 //	Total size: 32 + 256 = 288
@@ -14,15 +14,15 @@
 //
 //======================================================================
 
-#ifndef GRIT_BG_H
-#define GRIT_BG_H
+#ifndef GRIT_BUILDINGS_H
+#define GRIT_BUILDINGS_H
 
-#define bgTilesLen 256
-extern const unsigned short bgTiles[128];
+#define buildingsTilesLen 256
+extern const unsigned short buildingsTiles[128];
 
-#define bgPalLen 32
-extern const unsigned short bgPal[16];
+#define buildingsPalLen 32
+extern const unsigned short buildingsPal[16];
 
-#endif // GRIT_BG_H
+#endif // GRIT_BUILDINGS_H
 
-//}}BLOCK(bg)
+//}}BLOCK(buildings)

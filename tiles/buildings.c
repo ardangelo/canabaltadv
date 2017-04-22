@@ -1,9 +1,9 @@
 
-//{{BLOCK(bg)
+//{{BLOCK(buildings)
 
 //======================================================================
 //
-//	bg, 64x8@4, 
+//	buildings, 64x8@4, 
 //	+ palette 16 entries, not compressed
 //	+ 8 tiles not compressed
 //	Total size: 32 + 256 = 288
@@ -14,7 +14,7 @@
 //
 //======================================================================
 
-const unsigned short bgTiles[128] __attribute__((aligned(4)))=
+const unsigned short buildingsTiles[128] __attribute__((aligned(4)))=
 {
 	0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,
 	0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,
@@ -35,10 +35,10 @@ const unsigned short bgTiles[128] __attribute__((aligned(4)))=
 	0x1111,0x1111,0x1111,0x1111,0x1111,0x1111,0x1111,0x1111,
 };
 
-const unsigned short bgPal[16] __attribute__((aligned(4)))=
+const unsigned short buildingsPal[16] __attribute__((aligned(4)))=
 {
 	0x0000,0x0010,0x0200,0x0210,0x4000,0x4010,0x4200,0x4210,
 	0x6318,0x001F,0x03E0,0x03FF,0x7C00,0x7C1F,0x7FE0,0x7FFF,
 };
 
-//}}BLOCK(bg)
+//}}BLOCK(buildings)
