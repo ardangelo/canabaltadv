@@ -115,7 +115,7 @@ int main(void) {
  reset:
 
 	cam = (camera_t){0, 0, 5, 5};
-	guy = (player_t){NULL, 10, 10, 150, 0, 0, 0, 0, RUN, ANIM_RUN, 0, 0, 0};
+	guy = (player_t){NULL, 30, 10, 150, 0, 0, 0, 0, RUN, ANIM_RUN, 0, 0, 0};
 	
 	// generate the starting buildings
 	curr_build = 0;
@@ -188,7 +188,10 @@ int main(void) {
 		
 		if (cam_delta_x > 0) {
 			// did we hit a crate?
-			if (abs(guy.x - (CURR_BUILD.crate.x % PIXEL(32))) <= PIXEL(1)) {
+			if (!(CURR_BUILD.crate.hit) &&
+			    (abs(guy.x - CURR_BUILD.crate.x) <= PIXEL(1)) &&
+			    (abs(guy.y - CURR_BUILD.crate.y) <= PIXEL(2))) {
+				CURR_BUILD.crate.vy = CRATE_HIT_VY;
 				CURR_BUILD.crate.hit = 1;
 			}
 			
@@ -321,18 +324,31 @@ int main(void) {
 		// apply crate attributes
 		if (CURR_BUILD.crate.obj) {
 			if (CURR_BUILD.crate.hit) {
-				CURR_BUILD.crate.vy -= GRAV;
-				CURR_BUILD.crate.y += CURR_BUILD.crate.vy;
+				if (CURR_BUILD.crate.vy > TERMINAL_VELOCITY) {
+					CURR_BUILD.crate.vy -= GRAV;
+					CURR_BUILD.crate.y += CURR_BUILD.crate.vy;
+					CURR_BUILD.crate.x += CRATE_HIT_VX;
+				}
 			} else {
 				CURR_BUILD.crate.y = PIXEL(BG0_HEIGHT) - (cam.y + CURR_BUILD.crate.height + PIXEL(2));
 			}
-			CURR_BUILD.crate.x = (starts[curr_build] + PIXEL(CURR_BUILD.crate.offset)) - cam.x;
-			obj_set_pos(CURR_BUILD.crate.obj,
-			            CURR_BUILD.crate.x,
-			            CURR_BUILD.crate.y);
+			// I think there's something wrong with this, it starts messing with the spawn position of the box
+			CURR_BUILD.crate.x -= cam_delta_x;//((starts[curr_build] + PIXEL(CURR_BUILD.crate.offset)) - cam.x) % PIXEL(32);
+
+			if (CURR_BUILD.crate.y > SCREEN_HEIGHT) {
+				obj_set_attr(CURR_BUILD.crate.obj, 
+				             ATTR0_TALL | ATTR0_HIDE,
+				             ATTR1_SIZE_8,
+				             0);
+				CURR_BUILD.crate.obj = NULL;
+			} else {
+				obj_set_pos(CURR_BUILD.crate.obj,
+				            CURR_BUILD.crate.x,
+				            CURR_BUILD.crate.y);
+			}
 		}
 		
-		set_score(CURR_BUILD.crate.hit);//cam.x >> 3);
+		set_score(CURR_BUILD.crate.y);//cam.x >> 3);
 
 		// update bg regs
 		REG_BG0HOFS = cam.x;

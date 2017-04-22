@@ -27,7 +27,7 @@ sprites.o : tiles/sprites.c
 	arm-none-eabi-gcc $(CFLAGS) -c tiles/sprites.c -o sprites.o
 
 # compile the object files
-main.o : main.c
+main.o : main.c main.h
 	arm-none-eabi-gcc $(CFLAGS) -c main.c -o main.o
 
 # link objects into an elf

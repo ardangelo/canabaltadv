@@ -54,6 +54,8 @@ typedef struct {
 #define DEATH_BOUNDARY 8
 #define ROLL_THRESH .9*TERMINAL_VELOCITY
 #define GROUND_THRESH 4
+#define CRATE_HIT_VY -2
+#define CRATE_HIT_VX 2
 
 #define BG1_SCROLL_RATE .5
 #define BG1_YOFFS 30
