@@ -23,7 +23,7 @@ uint32_t curr_build = 0;
 // obj globals
 OBJ_ATTR obj_buffer[128];
 OBJ_AFFINE *obj_aff_buffer= (OBJ_AFFINE*)obj_buffer;
-int active_objs = 16; // 1 for player and 8 for score segments
+int active_objs = 9 + MAX_CRATES; // 1 for player, 8 for score segments, 2 for crates
 
 camera_t cam;
 player_t guy;
@@ -44,9 +44,13 @@ inline build_t generate_build() {
 	uint8_t width = 50 + (rand() % 10 - 5);
 	uint8_t gap = 15 + (rand() % 8 - 4);
 	build_style_t style = BUILD_S0;
-	crate_t crate = (crate_t){NULL, 0, 0, PIXEL(height), 0, 0, 0, TILE_METER_MARK};
+
+	build_t b = (build_t){height, width, gap, style, NULL};
+	for (int i = 0; i < MAX_CRATES; i++) {
+		b.crates[i] = (crate_t){NULL, 0, 0, PIXEL(height), PIXEL(2*i), 0, 0, TILE_METER_MARK};
+	}
 	
-	return (build_t){height, width, gap, style, crate};
+	return b;
 }
 
 void draw_col(SCR_ENTRY* map, uint32_t col) {
@@ -188,11 +192,14 @@ int main(void) {
 		
 		if (cam_delta_x > 0) {
 			// did we hit a crate?
-			if (!(CURR_BUILD.crate.hit) &&
-			    (abs(guy.x - CURR_BUILD.crate.x) <= PIXEL(1)) &&
-			    (abs(guy.y - CURR_BUILD.crate.y) <= PIXEL(2))) {
-				CURR_BUILD.crate.vy = CRATE_HIT_VY;
-				CURR_BUILD.crate.hit = 1;
+			for (int i = 0; (i < MAX_CRATES) && CURR_BUILD.crates[i].height; i++) {
+				crate_t *c = &CURR_BUILD.crates[i];
+				if (!c->hit &&
+				    (abs(guy.x - c->x) <= PIXEL(1)) &&
+				    (abs(guy.y - c->y) <= PIXEL(2))) {
+					c->vy = CRATE_HIT_VY;
+					c->hit = 1;
+				}
 			}
 			
 			// check if we stepped off the edge
@@ -200,12 +207,14 @@ int main(void) {
 			// check if we just entered a new building
 			if (((cam.x + guy.x) >> 3) + 1 >= starts[curr_build] + CURR_BUILD.width + CURR_BUILD.gap) {
 				// kill crate object if need to
-				if (CURR_BUILD.crate.obj) {
-					obj_set_attr(CURR_BUILD.crate.obj, 
-					             ATTR0_TALL | ATTR0_HIDE,
-					             ATTR1_SIZE_8,
-					             ATTR2_PALBANK(0));
-					CURR_BUILD.crate.obj = NULL;
+				for (int i = 0; (i < MAX_CRATES) && CURR_BUILD.crates[i].height; i++) {
+					if (CURR_BUILD.crates[i].obj) {
+						obj_set_attr(CURR_BUILD.crates[i].obj, 
+						             ATTR0_TALL | ATTR0_HIDE,
+						             ATTR1_SIZE_8,
+						             ATTR2_PALBANK(0));
+						CURR_BUILD.crates[i].obj = NULL;
+					}
 				}
 				
 				// generate new building and advance
@@ -213,16 +222,18 @@ int main(void) {
 				builds[curr_build] = generate_build();
 				curr_build = (curr_build + 1) % 4;
 
-				// create crate object if need to
-				if (1){//CURR_BUILD.crate.y) {
-					crate_t *c = &CURR_BUILD.crate;
-					c->obj = &obj_buffer[10];
-					obj_set_attr(c->obj, 
-					             ATTR0_TALL | 0,//ATTR0_HIDE,
-					             ATTR1_SIZE_8,
-					             ATTR2_PALBANK(0) | c->style);
-					c->x = starts[curr_build] + PIXEL(c->offset);
-					c->height = PIXEL(CURR_BUILD.height);
+				// create crate objects if need to
+				for (int i = 0; (i < MAX_CRATES) && CURR_BUILD.crates[i].height; i++) {
+					crate_t *c = &CURR_BUILD.crates[i];
+					if (1) {//c->y) {
+						c->obj = &obj_buffer[CRATE_OBJ_START + i];
+						obj_set_attr(c->obj, 
+						             ATTR0_TALL | 0,//ATTR0_HIDE,
+						             ATTR1_SIZE_8,
+						             ATTR2_PALBANK(0) | c->style);
+						c->x = starts[curr_build] + c->offset;
+						c->height = PIXEL(CURR_BUILD.height);
+					}
 				}
 
 				// update ground level
@@ -307,7 +318,6 @@ int main(void) {
 			}
 			guy.vy = 0;
 			guy.ay = 0;
-			// guy.height = ground;
 			guy.height = ground;
 		}
 
@@ -322,33 +332,36 @@ int main(void) {
 		obj_set_pos(guy.obj, guy.x, guy.y);
 
 		// apply crate attributes
-		if (CURR_BUILD.crate.obj) {
-			if (CURR_BUILD.crate.hit) {
-				if (CURR_BUILD.crate.vy > TERMINAL_VELOCITY) {
-					CURR_BUILD.crate.vy -= GRAV;
-					CURR_BUILD.crate.y += CURR_BUILD.crate.vy;
-					CURR_BUILD.crate.x += CRATE_HIT_VX;
+		for (int i = 0; (i < MAX_CRATES) && CURR_BUILD.crates[i].height; i++) {
+			crate_t *c = &CURR_BUILD.crates[i];
+			if (c->obj) {
+				if (c->hit) {
+					if (c->vy > TERMINAL_VELOCITY) {
+						c->vy -= GRAV;
+						c->y += c->vy;
+						c->x += CRATE_HIT_VX;
+					}
+				} else {
+					c->y = PIXEL(BG0_HEIGHT) - (cam.y + c->height + PIXEL(2));
 				}
-			} else {
-				CURR_BUILD.crate.y = PIXEL(BG0_HEIGHT) - (cam.y + CURR_BUILD.crate.height + PIXEL(2));
-			}
-			// I think there's something wrong with this, it starts messing with the spawn position of the box
-			CURR_BUILD.crate.x -= cam_delta_x;//((starts[curr_build] + PIXEL(CURR_BUILD.crate.offset)) - cam.x) % PIXEL(32);
+				// I think there's something wrong with this, it starts messing with the spawn position of the box
+				c->x -= cam_delta_x;//((starts[curr_build] + PIXEL(c->offset)) - cam.x) % PIXEL(32);
 
-			if (CURR_BUILD.crate.y > SCREEN_HEIGHT) {
-				obj_set_attr(CURR_BUILD.crate.obj, 
-				             ATTR0_TALL | ATTR0_HIDE,
-				             ATTR1_SIZE_8,
-				             0);
-				CURR_BUILD.crate.obj = NULL;
-			} else {
-				obj_set_pos(CURR_BUILD.crate.obj,
-				            CURR_BUILD.crate.x,
-				            CURR_BUILD.crate.y);
+				if (c->y > SCREEN_HEIGHT) {
+					obj_set_attr(c->obj, 
+					             ATTR0_TALL | ATTR0_HIDE,
+					             ATTR1_SIZE_8,
+					             0);
+					c->obj = NULL;
+				} else {
+					obj_set_pos(c->obj,
+					            c->x,
+					            c->y);
+				}
 			}
 		}
 		
-		set_score(CURR_BUILD.crate.y);//cam.x >> 3);
+		set_score(CURR_BUILD.crates[0].y);//cam.x >> 3);
 
 		// update bg regs
 		REG_BG0HOFS = cam.x;

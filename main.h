@@ -28,12 +28,13 @@ typedef struct {
 	byte tl, tm, tr, bl, bm, br;
 } build_style_t;
 
+#define MAX_CRATES 8
 typedef struct {
 	uint8_t height;
 	uint8_t width;
 	uint8_t gap;
 	build_style_t style;
-	crate_t crate;
+	crate_t crates[MAX_CRATES];
 } build_t;
 
 // graphics info
@@ -54,13 +55,15 @@ typedef struct {
 #define DEATH_BOUNDARY 8
 #define ROLL_THRESH .9*TERMINAL_VELOCITY
 #define GROUND_THRESH 4
+
+#define CRATE_OBJ_START 10
 #define CRATE_HIT_VY -2
 #define CRATE_HIT_VX 2
 
 #define BG1_SCROLL_RATE .5
 #define BG1_YOFFS 30
 #define BG2_SCROLL_RATE .25
-#define BG2_YOFFS 70
+#define BG2_YOFFS 50
 
 // animation stuff
 
