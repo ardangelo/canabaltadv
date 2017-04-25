@@ -1,3 +1,4 @@
+#define MUSIC 0
 
 #include <tonc.h>
 #include <krawall.h>
@@ -11,12 +12,6 @@
 #include "tiles/midground.h"
 #include "tiles/background.h"
 #include "tiles/sprites.h"
-
-#if MUSIC == 1
-#include "modules/instruments.h"
-#include "modules/modules.h"
-#include "modules/samples.h"
-#endif
 
 uint32_t frame_count;
 
@@ -112,13 +107,6 @@ int main(void) {
 	fnptr isr = NULL;
 	irq_init(isr);
 	irq_add(II_VBLANK, isr);
-
-	#if MUSIC == 1
-	irq_add(II_TIMER1, kradInterrupt);
-
-	kragInit(KRAG_INIT_STEREO);
-	krapPlay(&mod_sanic, KRAP_MODE_LOOP, 0);
-	#endif
 	
 	// set up backgrounds tiles
 	memcpy(pal_bg_bank[0], buildingsPal, buildingsPalLen); // load colors into bgpal
@@ -194,12 +182,6 @@ int main(void) {
 
 	while(1) {
 		VBlankIntrWait();
-
-		#if MUSIC == 1
-		krapInstProcess();
-		kramWorker();
-		#endif
-		
 		key_poll();
 
 		int cam_delta_x = key_tri_horz() * cam.vx;

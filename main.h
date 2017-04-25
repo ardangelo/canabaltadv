@@ -1,5 +1,3 @@
-#define MUSIC 0
-
 // data structs
 typedef struct {
 	int x, y;

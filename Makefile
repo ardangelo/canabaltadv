@@ -1,5 +1,3 @@
-MUSIC := no
-
 PATH := $(DEVKITARM)/bin:$(PATH)
 include $(DEVKITARM)/gba_rules
 
@@ -28,28 +26,13 @@ background.o : tiles/background.c
 sprites.o : tiles/sprites.c
 	arm-none-eabi-gcc $(CFLAGS) -c tiles/sprites.c -o sprites.o
 
-# assemble the sound resources
-ifeq ($(MUSIC),yes)
-instruments.o: modules/instruments.s
-	arm-none-eabi-as -o $@ $<
-samples.o: modules/samples.s
-	arm-none-eabi-as -o $@ $<
-sanic.o: modules/sanic.s
-	arm-none-eabi-as -o $@ $<
-endif
-
 # compile the object files
 main.o : main.c main.h
 	arm-none-eabi-gcc $(CFLAGS) -c main.c -o main.o
 
 # link objects into an elf
-ifeq ($(MUSIC),yes)
-$(ROMNAME).elf : main.o buildings.o midground.o background.o sprites.o instruments.o samples.o sanic.o
-	arm-none-eabi-gcc main.o buildings.o midground.o background.o sprites.o instruments.o samples.o sanic.o $(LDFLAGS) -o $(ROMNAME).elf
-else
 $(ROMNAME).elf : main.o buildings.o midground.o background.o sprites.o
 	arm-none-eabi-gcc main.o buildings.o midground.o background.o sprites.o $(LDFLAGS) -o $(ROMNAME).elf
-endif
 
 # objcopy and fix the rom
 $(ROMNAME).gba : $(ROMNAME).elf
