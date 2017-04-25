@@ -1,5 +1,6 @@
 
 #include <tonc.h>
+#include <krawall.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +11,10 @@
 #include "tiles/midground.h"
 #include "tiles/background.h"
 #include "tiles/sprites.h"
+
+#include "modules/instruments.h"
+#include "modules/modules.h"
+#include "modules/samples.h"
 
 uint32_t frame_count;
 
@@ -102,8 +107,13 @@ static inline void set_score(uint32_t score) {
 
 int main(void) {
 	// set up irqs
-	irq_init(NULL);
-	irq_add(II_VBLANK, NULL);
+	fnptr isr = NULL;
+	irq_init(isr);
+	irq_add(II_VBLANK, isr);
+	irq_add(II_TIMER1, kradInterrupt);
+
+	kragInit(KRAG_INIT_STEREO);
+	krapPlay(&mod_sanic, KRAP_MODE_LOOP, 0);
 	
 	// set up backgrounds tiles
 	memcpy(pal_bg_bank[0], buildingsPal, buildingsPalLen); // load colors into bgpal
@@ -179,6 +189,10 @@ int main(void) {
 
 	while(1) {
 		VBlankIntrWait();
+
+		krapInstProcess();
+		kramWorker();
+		
 		key_poll();
 
 		int cam_delta_x = key_tri_horz() * cam.vx;

@@ -2,7 +2,7 @@ PATH := $(DEVKITARM)/bin:$(PATH)
 include $(DEVKITARM)/gba_rules
 
 INCLUDE	:= -Iinclude
-LIBS		:= -ltonc
+LIBS		:= -ltonc -lkrawall
 LIBPATHS	:= -Llib
 
 SPECS	:= -specs=gba_mb.specs
@@ -26,13 +26,21 @@ background.o : tiles/background.c
 sprites.o : tiles/sprites.c
 	arm-none-eabi-gcc $(CFLAGS) -c tiles/sprites.c -o sprites.o
 
+# assemble the sound resources
+instruments.o: modules/instruments.s
+	arm-none-eabi-as -o $@ $<
+samples.o: modules/samples.s
+	arm-none-eabi-as -o $@ $<
+sanic.o: modules/sanic.s
+	arm-none-eabi-as -o $@ $<
+
 # compile the object files
 main.o : main.c main.h
 	arm-none-eabi-gcc $(CFLAGS) -c main.c -o main.o
 
 # link objects into an elf
-$(ROMNAME).elf : main.o buildings.o midground.o background.o sprites.o
-	arm-none-eabi-gcc main.o buildings.o midground.o background.o sprites.o $(LDFLAGS) -o $(ROMNAME).elf
+$(ROMNAME).elf : main.o buildings.o midground.o background.o sprites.o instruments.o samples.o sanic.o
+	arm-none-eabi-gcc main.o buildings.o midground.o background.o sprites.o instruments.o samples.o sanic.o $(LDFLAGS) -o $(ROMNAME).elf
 
 # objcopy and fix the rom
 $(ROMNAME).gba : $(ROMNAME).elf
