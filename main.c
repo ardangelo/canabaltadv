@@ -101,7 +101,10 @@ static inline void set_score(uint32_t score) {
 }
 
 int main(void) {
-
+	// set up irqs
+	irq_init(NULL);
+	irq_add(II_VBLANK, NULL);
+	
 	// set up backgrounds tiles
 	memcpy(pal_bg_bank[0], buildingsPal, buildingsPalLen); // load colors into bgpal
 	memcpy(pal_bg_bank[1], midgroundPal, midgroundPalLen);
@@ -175,7 +178,7 @@ int main(void) {
 	int ground = PIXEL(CURR_BUILD.height);
 
 	while(1) {
-		vid_vsync();
+		VBlankIntrWait();
 		key_poll();
 
 		int cam_delta_x = key_tri_horz() * cam.vx;
@@ -336,8 +339,8 @@ int main(void) {
 			crate_t *c = &CURR_BUILD.crates[i];
 			if (c->obj) {
 				if (c->hit) {
-					if (c->vy > TERMINAL_VELOCITY) {
-						c->vy -= GRAV;
+					if (c->vy > CRATE_TERMINAL_VELOCITY) {
+						c->vy -= CRATE_GRAV;
 						c->y += c->vy;
 						c->x += CRATE_HIT_VX;
 					}

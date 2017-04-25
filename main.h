@@ -48,6 +48,7 @@ typedef struct {
 // tunables
 #define UPPER_SLACK 40
 #define LOWER_SLACK 80
+
 #define GRAV -.2
 #define TERMINAL_VELOCITY 30*GRAV
 #define JUMP_START_VEL -30*GRAV
@@ -57,8 +58,10 @@ typedef struct {
 #define GROUND_THRESH 4
 
 #define CRATE_OBJ_START 10
-#define CRATE_HIT_VY -2
-#define CRATE_HIT_VX 2
+#define CRATE_GRAV -.12
+#define CRATE_TERMINAL_VELOCITY 30*CRATE_GRAV
+#define CRATE_HIT_VY -1
+#define CRATE_HIT_VX 4
 
 #define BG1_SCROLL_RATE .5
 #define BG1_YOFFS 30
