@@ -28,6 +28,7 @@ typedef struct {
 	byte tl, tm, tr, bl, bm, br;
 } build_style_t;
 
+#define BUILDS_AHEAD 4
 #define MAX_CRATES 8
 typedef struct {
 	uint8_t height;
@@ -38,12 +39,18 @@ typedef struct {
 } build_t;
 
 // graphics info
-#define PIXEL(x) (x*8)
+#define PIXEL(x) ((x)*8)
 
 // bg globals
 #define WORLD_HEIGHT 32
 #define BG0_HEIGHT 32
 #define BG0_WIDTH 64
+#define BUILDINGS_PB 0
+#define MIDGROUND_PB 1
+#define BACKGROUND_PB 2
+
+// allocations
+#define CRATE_OBJ_START 10
 
 // tunables
 #define UPPER_SLACK 40
@@ -57,7 +64,6 @@ typedef struct {
 #define ROLL_THRESH .9*TERMINAL_VELOCITY
 #define GROUND_THRESH 4
 
-#define CRATE_OBJ_START 10
 #define CRATE_GRAV -.12
 #define CRATE_TERMINAL_VELOCITY 30*CRATE_GRAV
 #define CRATE_HIT_VY -1

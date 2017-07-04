@@ -15,12 +15,12 @@
 
 uint32_t frame_count;
 
-build_t builds[4];
-uint32_t starts[4];
+build_t builds[BUILDS_AHEAD];
+uint32_t starts[BUILDS_AHEAD];
 uint32_t curr_build = 0;
 
 #define CURR_BUILD (builds[curr_build])
-#define LAST_BUILD (builds[(curr_build + 3) % 4])
+#define LAST_BUILD (builds[(curr_build + (BUILDS_AHEAD-1)) % BUILDS_AHEAD])
 
 // obj globals
 OBJ_ATTR obj_buffer[128];
@@ -48,8 +48,10 @@ inline build_t generate_build() {
 	build_style_t style = BUILD_S0;
 
 	build_t b = (build_t){height, width, gap, style, NULL};
-	for (int i = 0; i < MAX_CRATES; i++) {
-		b.crates[i] = (crate_t){NULL, 0, 0, PIXEL(height), PIXEL(2*i), 0, 0, TILE_METER_MARK};
+	for (uint i = 0; i < MAX_CRATES; i++) {
+		if ((int)(rand() % 10) > i) {
+			b.crates[i] = (crate_t){NULL, 0, 0, PIXEL(height), PIXEL(10 + 2*i), 0, 0, TILE_METER_MARK};
+		}
 	}
 	
 	return b;
@@ -59,8 +61,8 @@ void draw_col(SCR_ENTRY* map, uint32_t col) {
 	if (starts[curr_build] > col) {
 		return;
 	}
-	for (int i = 0; i < 4; i++) {
-		int bn = (curr_build + i) % 4;
+	for (int i = 0; i < BUILDS_AHEAD; i++) {
+		int bn = (curr_build + i) % BUILDS_AHEAD;
 		build_t *b = &builds[bn];
 		if ((starts[bn] <= col) && (col < starts[bn] + b->width + b->gap)) {
 			uint16_t tile = TILE_TRANSPARENT;
@@ -84,7 +86,7 @@ void draw_col(SCR_ENTRY* map, uint32_t col) {
 				} else {
 					tile = TILE_TRANSPARENT;
 				}
-				map[se_index_fast(col%64, row, REG_BG0CNT)] = SE_PALBANK(0) | tile;
+				map[se_index_fast(col%64, row, REG_BG0CNT)] = SE_PALBANK(BUILDINGS_PB) | tile;
 			}
 			return;
 		}
@@ -98,7 +100,7 @@ static inline void set_score(uint32_t score) {
 		             ATTR1_SIZE_8,
 		             ATTR2_PALBANK(0) | (TILE_ZERO + 2*(score % 10)));
 		score /= 10;
-		obj_set_pos(score_objs[i], SCREEN_WIDTH - 8*(i+1), 0);
+		obj_set_pos(score_objs[i], SCREEN_WIDTH - PIXEL(i+1), 0);
 	}
 }
 
@@ -109,14 +111,14 @@ int main(void) {
 	irq_add(II_VBLANK, isr);
 	
 	// set up backgrounds tiles
-	memcpy(pal_bg_bank[0], buildingsPal, buildingsPalLen); // load colors into bgpal
-	memcpy(pal_bg_bank[1], midgroundPal, midgroundPalLen);
-	memcpy(pal_bg_bank[2], backgroundPal, backgroundPalLen);
+	dma3_cpy(pal_bg_bank[0], buildingsPal, buildingsPalLen); // load colors into bgpal
+	dma3_cpy(pal_bg_bank[1], midgroundPal, midgroundPalLen);
+	dma3_cpy(pal_bg_bank[2], backgroundPal, backgroundPalLen);
 	// 26-33 as screenblocks. 4 bits per pixel, 64x32 tiles
 	// use block 0 as tile charblock
-	memcpy(&tile_mem[0][0], buildingsTiles, buildingsTilesLen); // block 1 as midground charblock
-	memcpy(&tile_mem[1][0], midgroundTiles, midgroundTilesLen); // block 2 background charblock
-	memcpy(&tile_mem[2][0], backgroundTiles, backgroundTilesLen); 
+	dma3_cpy(&tile_mem[0][0], buildingsTiles, buildingsTilesLen); // block 1 as midground charblock
+	dma3_cpy(&tile_mem[1][0], midgroundTiles, midgroundTilesLen); // block 2 background charblock
+	dma3_cpy(&tile_mem[2][0], backgroundTiles, backgroundTilesLen); 
 
 	SCR_ENTRY *bg0_map = se_mem[30];
 	SCR_ENTRY *bg1_map = se_mem[28];
@@ -131,7 +133,7 @@ int main(void) {
 	curr_build = 0;
 	starts[0] = 0;
 	builds[0] = generate_build();
-	for (int i = 1; i < 4; i++) {
+	for (int i = 1; i < BUILDS_AHEAD; i++) {
 		starts[i] = starts[i-1] + builds[i-1].width + builds[i-1].gap;
 		builds[i] = generate_build();
 	}
@@ -145,10 +147,10 @@ int main(void) {
 	// fill in the midground bg1 and background bg2
 	REG_BG1CNT = BG_PRIO(1) | BG_CBB(1) | BG_SBB(28) | BG_4BPP | BG_REG_64x32;
 	REG_BG2CNT = BG_PRIO(2) | BG_CBB(2) | BG_SBB(26) | BG_4BPP | BG_REG_64x32;
-	for (int i = 0; i < 64; i++) {
-		for (int j = 0; j < 32; j++) {
-			bg1_map[se_index_fast(i, j, REG_BG1CNT)] = SE_PALBANK(1) | midgroundMap[64*j+i];
-			bg2_map[se_index_fast(i, j, REG_BG2CNT)] = SE_PALBANK(2) | backgroundMap[64*j+i];
+	for (int i = 0; i < BG0_WIDTH; i++) {
+		for (int j = 0; j < BG0_HEIGHT; j++) {
+			bg1_map[se_index_fast(i, j, REG_BG1CNT)] = SE_PALBANK(MIDGROUND_PB) | midgroundMap[64*j+i];
+			bg2_map[se_index_fast(i, j, REG_BG2CNT)] = SE_PALBANK(BACKGROUND_PB) | backgroundMap[64*j+i];
 		}
 	}
 
@@ -174,7 +176,7 @@ int main(void) {
 	             ATTR0_TALL,
 	             ATTR1_SIZE_8,
 	             ATTR2_PALBANK(0) | TILE_METER_MARK);
-	obj_set_pos(score_objs[0], SCREEN_WIDTH - 8, 0);
+	obj_set_pos(score_objs[0], SCREEN_WIDTH - PIXEL(1), 0);
 
 	// Scroll around some
 	int horizon = (SCREEN_WIDTH >> 3);
@@ -224,9 +226,9 @@ int main(void) {
 				}
 				
 				// generate new building and advance
-				starts[curr_build] = starts[(curr_build + 3) % 4] + LAST_BUILD.width + LAST_BUILD.gap;
+				starts[curr_build] = starts[(curr_build + (BUILDS_AHEAD-1)) % BUILDS_AHEAD] + LAST_BUILD.width + LAST_BUILD.gap;
 				builds[curr_build] = generate_build();
-				curr_build = (curr_build + 1) % 4;
+				curr_build = (curr_build + 1) % BUILDS_AHEAD;
 
 				// create crate objects if need to
 				for (int i = 0; (i < MAX_CRATES) && CURR_BUILD.crates[i].height; i++) {
@@ -237,7 +239,7 @@ int main(void) {
 						             ATTR0_TALL | 0,//ATTR0_HIDE,
 						             ATTR1_SIZE_8,
 						             ATTR2_PALBANK(0) | c->style);
-						c->x = starts[curr_build] + c->offset;
+						c->x = guy.x + c->offset;
 						c->height = PIXEL(CURR_BUILD.height);
 					}
 				}
@@ -367,7 +369,7 @@ int main(void) {
 			}
 		}
 		
-		set_score(CURR_BUILD.crates[0].y);//cam.x >> 3);
+		set_score(curr_build);//abs(cam.x + guy.x - starts[curr_build]));//cam.x >> 3);
 
 		// update bg regs
 		REG_BG0HOFS = cam.x;

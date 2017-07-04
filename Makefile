@@ -1,6 +1,8 @@
 PATH := $(DEVKITARM)/bin:$(PATH)
 include $(DEVKITARM)/gba_rules
 
+CC			:= arm-none-eabi-gcc
+
 INCLUDE	:= -Iinclude
 LIBS		:= -ltonc -lkrawall
 LIBPATHS	:= -Llib
@@ -18,21 +20,21 @@ all: $(ROMNAME).gba
 
 # compile the gfx resources
 buildings.o : tiles/buildings.c
-	arm-none-eabi-gcc $(CFLAGS) -c tiles/buildings.c -o buildings.o
+	$(CC) $(CFLAGS) -c tiles/buildings.c -o buildings.o
 midground.o : tiles/midground.c
-	arm-none-eabi-gcc $(CFLAGS) -c tiles/midground.c -o midground.o
+	$(CC) $(CFLAGS) -c tiles/midground.c -o midground.o
 background.o : tiles/background.c
-	arm-none-eabi-gcc $(CFLAGS) -c tiles/background.c -o background.o
+	$(CC) $(CFLAGS) -c tiles/background.c -o background.o
 sprites.o : tiles/sprites.c
-	arm-none-eabi-gcc $(CFLAGS) -c tiles/sprites.c -o sprites.o
+	$(CC) $(CFLAGS) -c tiles/sprites.c -o sprites.o
 
 # compile the object files
 main.o : main.c main.h
-	arm-none-eabi-gcc $(CFLAGS) -c main.c -o main.o
+	$(CC) $(CFLAGS) -c main.c -o main.o
 
 # link objects into an elf
 $(ROMNAME).elf : main.o buildings.o midground.o background.o sprites.o
-	arm-none-eabi-gcc main.o buildings.o midground.o background.o sprites.o $(LDFLAGS) -o $(ROMNAME).elf
+	$(CC) main.o buildings.o midground.o background.o sprites.o $(LDFLAGS) -o $(ROMNAME).elf
 
 # objcopy and fix the rom
 $(ROMNAME).gba : $(ROMNAME).elf
