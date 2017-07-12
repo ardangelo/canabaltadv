@@ -1,31 +1,12 @@
-char *dbg_str;
-/*
-#define DEBUG(str) (nocash_puts(str))
-#define DEBUGFMT(fmt, ...) do {	  \
-		asprintf(&dbg_str, fmt, __VA_ARGS__); \
-		nocash_puts(dbg_str); \
-		free(dbg_str); \
-	} while (0)
-*/
-#define DEBUG(fmt, ...)
-#define DEBUGFMT(fmt, ...)
+#ifndef _MAIN_H_
+#define _MAIN_H_
+
+#include "engine.h"
 
 // data structs
 typedef struct {
-	int x, y;
-	float vx, vy;
-} camera_t;
-
-typedef struct {
 	uint frame, start, len;
 } animation_t;
-
-typedef struct {
-	OBJ_ATTR *obj;
-	int x, height;
-	uint16_t shape, size;
-	short palbank, tile;
-} sprite_t;
 
 typedef enum {
 	RUN, JUMP, FALL, ROLL, DEAD
@@ -56,36 +37,12 @@ typedef struct {
 	build_style_t style;
 } build_t;
 
-// graphics info
-#define SCREEN_HEIGHT 160
-#define SCREEN_WIDTH 240
-#define PIXEL(x) ((x)*8)
-#define SCREEN_X(s, c) ((s).x - (c).x)
-#define SCREEN_Y(s, c) (PIXEL(WORLD_HEIGHT) - (s).height - (c).y)
-#define OBJ_VISIBLE(obj) (((obj).attr0 & 0xFF00) != ATTR0_HIDE)
-/*
-shape\size  0000  4000  8000  C000 
-0000         8x8 16x16 32x32 64x64 
-4000        16x8  32x8 32x16 64x32 
-8000        8x16  8x32 16x32 32x64 */
-static uint16_t attr_widths[3] = { 0x6543, 0x6554, 0x5433 };
-static uint16_t attr_heights[3] = { 0x6543, 0x5433, 0x6554 };
-// idx = (s).shape >> 14; offs = ((s).size >> 14) << 2;
-// final = 1 << (attr_arr[idx] >> offs) & 0xF;
-#define SPRITE_WIDTH(s) (1 << ((attr_widths[(s).shape >> 14] >> ((s).size >> 12)) & 0xF))
-#define SPRITE_HEIGHT(s) (1 << ((attr_heights[(s).shape >> 14] >> ((s).size >> 12)) & 0xF))
-
 // bg globals
-#define WORLD_HEIGHT 32
 #define BG0_HEIGHT 32
 #define BG0_WIDTH 64
 #define BUILDINGS_PB 0
 #define MIDGROUND_PB 1
 #define BACKGROUND_PB 2
-
-// allocations
-#define MIN_OBJS 16
-#define MAX_OBJS 128
 
 // tunables
 #define UPPER_SLACK 30
@@ -121,3 +78,5 @@ static uint16_t attr_heights[3] = { 0x6543, 0x5433, 0x6554 };
 #define TILE_TRANSPARENT 0
 #define BUILD_S0 (build_style_t){1,2,3,4,5,6}
 #define TILE_SKY 7
+
+#endif

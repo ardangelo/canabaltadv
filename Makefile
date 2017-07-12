@@ -29,12 +29,14 @@ sprites.o : tiles/sprites.c
 	$(CC) $(CFLAGS) -c tiles/sprites.c -o sprites.o
 
 # compile the object files
-main.o : main.c main.h
+engine.o : engine.c engine.h
+	$(CC) $(CFLAGS) -c engine.c -o engine.o
+main.o : main.c main.h engine.h
 	$(CC) $(CFLAGS) -c main.c -o main.o
 
 # link objects into an elf
-$(ROMNAME).elf : main.o buildings.o midground.o background.o sprites.o
-	$(CC) main.o buildings.o midground.o background.o sprites.o $(LDFLAGS) -o $(ROMNAME).elf
+$(ROMNAME).elf : main.o engine.o buildings.o midground.o background.o sprites.o
+	$(CC) main.o engine.o buildings.o midground.o background.o sprites.o $(LDFLAGS) -o $(ROMNAME).elf
 
 # objcopy and fix the rom
 $(ROMNAME).gba : $(ROMNAME).elf

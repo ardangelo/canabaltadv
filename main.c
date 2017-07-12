@@ -13,6 +13,8 @@
 #include "tiles/background.h"
 #include "tiles/sprites.h"
 
+#include "engine.h"
+
 uint32_t frame_count;
 
 build_t builds[BUILDS_AHEAD];
@@ -26,11 +28,6 @@ int num_crates = 0;
 #define CURR_BUILD (builds[curr_build])
 #define NEXT_BUILD (builds[(curr_build + 1) % BUILDS_AHEAD])
 #define LAST_BUILD (builds[(curr_build + (BUILDS_AHEAD-1)) % BUILDS_AHEAD])
-
-// obj globals
-OBJ_ATTR obj_buffer[MAX_OBJS];
-OBJ_AFFINE *obj_aff_buffer= (OBJ_AFFINE*)obj_buffer;
-int active_objs = MIN_OBJS;
 
 camera_t cam;
 player_t guy;
@@ -89,68 +86,6 @@ inline void draw_col(SCR_ENTRY* map, uint32_t col) {
 			return;
 		}
 	}
-}
-
-static inline OBJ_ATTR* new_obj() {
-	int i;
-	for (i = 0; i < active_objs; i++) {
-		if (!OBJ_VISIBLE(obj_buffer[i])) {
-			DEBUGFMT("found an empty obj: %d", i);
-			return &obj_buffer[i];
-		}
-	}
-	DEBUG("expanding active objs");
-	active_objs *= 2;
-	if (active_objs > MAX_OBJS) {
-		DEBUG("too many objs! resetting");
-		swi_call(0x00);
-	} else if (OBJ_VISIBLE(obj_buffer[i])) {
-		DEBUG("you didn't clean up the objs! resetting");
-		swi_call(0x00);
-	}
-	return &obj_buffer[i];
-}
-
-static inline void delete_sprite(sprite_t *s) {
-	oam_init(s->obj, 1);
-	s->obj = NULL;
-	if ((active_objs / 2) < MIN_OBJS) { return; }
-	for (int i = active_objs / 2; i < active_objs; i++) {
-		if (OBJ_VISIBLE(obj_buffer[i])) {
-			return;
-		}
-	}
-	oam_init(&obj_buffer[active_objs / 2], active_objs - (active_objs / 2));
-	active_objs /= 2;
-}
-
-static inline void place_sprite(sprite_t *s, camera_t *c) {
-	bool exist = s->obj != NULL;
-	int screen_x = SCREEN_X(*s, *c);
-	int screen_y = SCREEN_Y(*s, *c);
-	
-	DEBUGFMT("sprite in world at %d, %d on screen at %d, %d, exist: %d, height: %d", s->x, s->height, screen_x, screen_y, exist, SPRITE_HEIGHT(*s));
-	
-	if ((screen_y + SPRITE_HEIGHT(*s) < 0) ||
-	    (screen_y > SCREEN_HEIGHT) ||
-	    (screen_x + SPRITE_WIDTH(*s) < 0) ||
-	    (screen_x > SCREEN_WIDTH)) {
-		if (exist) {
-			DEBUG("sprite left! deleting it");
-			delete_sprite(s);
-		}
-		return;
-	} else {
-		if (!exist) {
-			DEBUG("sprite on screen and needs to be created");
-			s->obj = new_obj();
-		}
-	}
-	obj_set_attr(s->obj,
-	             s->shape | ATTR0_REG,
-	             s->size,
-	             ATTR2_PALBANK(s->palbank) | s->tile);
-	obj_set_pos(s->obj, screen_x, screen_y);
 }
 
 static inline void set_score(uint32_t score) {
@@ -213,7 +148,7 @@ int main(void) {
 	REG_DISPCNT = DCNT_MODE0 | DCNT_BG0 | DCNT_BG1 | DCNT_BG2 | DCNT_OBJ | DCNT_OBJ_1D;
 
 	// load in the sprites
-	oam_init(obj_buffer, 128);
+	init_sprites();
 	memcpy(pal_obj_mem, spritesPal, spritesPalLen);
 	memcpy(&tile_mem[4][0], spritesTiles, spritesTilesLen);
 	
@@ -403,8 +338,9 @@ int main(void) {
 		REG_BG1VOFS = cam.y * BG1_SCROLL_RATE + BG1_YOFFS;
 		REG_BG2HOFS = cam.x * BG2_SCROLL_RATE;
 		REG_BG2VOFS = cam.y * BG2_SCROLL_RATE + BG2_YOFFS;
+		
 		// update oam
-		oam_copy(oam_mem, obj_buffer, active_objs);
+		copy_objs();
 	}
 
 	return 0;
