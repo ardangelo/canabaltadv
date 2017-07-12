@@ -1,3 +1,15 @@
+char *dbg_str;
+/*
+#define DEBUG(str) (nocash_puts(str))
+#define DEBUGFMT(fmt, ...) do {	  \
+		asprintf(&dbg_str, fmt, __VA_ARGS__); \
+		nocash_puts(dbg_str); \
+		free(dbg_str); \
+	} while (0)
+*/
+#define DEBUG(fmt, ...)
+#define DEBUGFMT(fmt, ...)
+
 // data structs
 typedef struct {
 	int x, y;
@@ -10,16 +22,23 @@ typedef struct {
 
 typedef struct {
 	OBJ_ATTR *obj;
-	uint x, y, height;
+	int x, height;
+	uint16_t shape, size;
+	short palbank, tile;
+} sprite_t;
+
+typedef enum {
+	RUN, JUMP, FALL, ROLL, DEAD
+} player_state_t;
+typedef struct {
+	sprite_t s;
 	float vx, vy, ax, ay;
-	enum {RUN, JUMP, FALL, ROLL, DEAD} state;
+	player_state_t state;
 	animation_t anim;
-	uint anim_start, anim_frame, anim_len;
 } player_t;
 
 typedef struct {
-	OBJ_ATTR *obj;
-	uint x, y, height, offset; // offset is the offset from the left edge of the building
+	sprite_t s;
 	float vy;
 	uint hit, style;
 } crate_t;
@@ -35,11 +54,26 @@ typedef struct {
 	uint8_t width;
 	uint8_t gap;
 	build_style_t style;
-	crate_t crates[MAX_CRATES];
 } build_t;
 
 // graphics info
+#define SCREEN_HEIGHT 160
+#define SCREEN_WIDTH 240
 #define PIXEL(x) ((x)*8)
+#define SCREEN_X(s, c) ((s).x - (c).x)
+#define SCREEN_Y(s, c) (PIXEL(WORLD_HEIGHT) - (s).height - (c).y)
+#define OBJ_VISIBLE(obj) (((obj).attr0 & 0xFF00) != ATTR0_HIDE)
+/*
+shape\size  0000  4000  8000  C000 
+0000         8x8 16x16 32x32 64x64 
+4000        16x8  32x8 32x16 64x32 
+8000        8x16  8x32 16x32 32x64 */
+static uint16_t attr_widths[3] = { 0x6543, 0x6554, 0x5433 };
+static uint16_t attr_heights[3] = { 0x6543, 0x5433, 0x6554 };
+// idx = (s).shape >> 14; offs = ((s).size >> 14) << 2;
+// final = 1 << (attr_arr[idx] >> offs) & 0xF;
+#define SPRITE_WIDTH(s) (1 << ((attr_widths[(s).shape >> 14] >> ((s).size >> 12)) & 0xF))
+#define SPRITE_HEIGHT(s) (1 << ((attr_heights[(s).shape >> 14] >> ((s).size >> 12)) & 0xF))
 
 // bg globals
 #define WORLD_HEIGHT 32
@@ -50,23 +84,23 @@ typedef struct {
 #define BACKGROUND_PB 2
 
 // allocations
-#define CRATE_OBJ_START 10
+#define MIN_OBJS 16
+#define MAX_OBJS 128
 
 // tunables
-#define UPPER_SLACK 40
-#define LOWER_SLACK 80
+#define UPPER_SLACK 30
+#define LOWER_SLACK 90
 
 #define GRAV -.2
 #define TERMINAL_VELOCITY 30*GRAV
-#define JUMP_START_VEL -30*GRAV
-#define JUMP_END_VEL -13*GRAV
-#define DEATH_BOUNDARY 8
+#define JUMP_START_VEL 6
+#define JUMP_END_VEL 3
 #define ROLL_THRESH .9*TERMINAL_VELOCITY
 #define GROUND_THRESH 4
 
 #define CRATE_GRAV -.12
 #define CRATE_TERMINAL_VELOCITY 30*CRATE_GRAV
-#define CRATE_HIT_VY -1
+#define CRATE_HIT_VY 1
 #define CRATE_HIT_VX 4
 
 #define BG1_SCROLL_RATE .5
