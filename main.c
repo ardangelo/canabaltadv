@@ -22,7 +22,8 @@ uint32_t starts[BUILDS_AHEAD];
 uint32_t curr_build = 0;
 
 crate_t crates[MAX_CRATES];
-uint32_t curr_crate = 0;
+int crate_head = 0;
+int crate_tail = 0;
 int num_crates = 0;
 
 #define CURR_BUILD (builds[curr_build])
@@ -34,7 +35,7 @@ player_t guy;
 
 OBJ_ATTR *score_objs[8];
 
-inline uint se_index_fast(uint tx, uint ty, u16 bgcnt) {
+static uint se_index_fast(uint tx, uint ty, u16 bgcnt) {
 	uint n= tx + ty*32;
 	if(tx >= 32)
 		n += 0x03E0;
@@ -43,7 +44,7 @@ inline uint se_index_fast(uint tx, uint ty, u16 bgcnt) {
 	return n;
 }
 
-inline build_t generate_build() {
+static build_t generate_build() {
 	uint8_t height = 14 + (rand() % 10 - 5);
 	uint8_t width = 50 + (rand() % 10 - 5);
 	uint8_t gap = 15 + (rand() % 8 - 4);
@@ -52,7 +53,7 @@ inline build_t generate_build() {
 	return (build_t){height, width, gap, style};
 }
 
-inline void draw_col(SCR_ENTRY* map, uint32_t col) {
+static void draw_col(SCR_ENTRY* map, uint32_t col) {
 	if (starts[curr_build] > col) {
 		return;
 	}
@@ -62,7 +63,7 @@ inline void draw_col(SCR_ENTRY* map, uint32_t col) {
 		if ((starts[bn] <= col) && (col < starts[bn] + b->width + b->gap)) {
 			uint16_t tile = TILE_TRANSPARENT;
 			for (int row = 0; row < WORLD_HEIGHT; row++) {
-				if (row > (WORLD_HEIGHT - b->height)) { // TODO: find out why 4
+				if (row > (WORLD_HEIGHT - b->height)) {
 					if (col == starts[bn]) {
 						tile = b->style.bl;
 					} else if ((col > starts[bn]) && (col < starts[bn] + b->width)) {
@@ -88,7 +89,7 @@ inline void draw_col(SCR_ENTRY* map, uint32_t col) {
 	}
 }
 
-static inline void set_score(uint32_t score) {
+static void set_score(uint32_t score) {
 	for (int i = 1; i < 8; i++) {
 		obj_set_attr(score_objs[i],
 		             ATTR0_TALL | ATTR0_REG,
@@ -177,6 +178,10 @@ int main(void) {
 	             ATTR2_PALBANK(0) | TILE_METER_MARK);
 	obj_set_pos(score_objs[0], SCREEN_WIDTH - PIXEL(1), 0);
 
+	for (int i = 0; i < MAX_CRATES; i++) {
+		crates[i].valid = false;
+	}
+
 	// Scroll around some
 	int horizon = (SCREEN_WIDTH >> 3);
 	int ground = PIXEL(CURR_BUILD.height);
@@ -195,7 +200,20 @@ int main(void) {
 
 		// things we need to do when the player moves horizontally
 		if (cam_delta_x > 0) {
-			// TODO: did we hit a crate?
+			for (int i = 0; i < MAX_CRATES; i++) {
+				if ((!crates[i].hit) && (crates[i].s.obj != NULL)) {
+					if ((guy.s.x > crates[i].s.x) &&
+					    (guy.s.x < crates[i].s.x + SPRITE_WIDTH(crates[i].s)) &&
+					    (guy.s.height - SPRITE_HEIGHT(guy.s) < crates[i].s.height) &&
+					    (guy.s.height > crates[i].s.height - SPRITE_HEIGHT(crates[i].s))) {
+						crates[i].hit = true;
+						
+						crates[i].vx = CRATE_HIT_VX;
+						crates[i].vy = CRATE_HIT_VY;
+						crates[i].ay = CRATE_GRAV;
+					}
+				}
+			}
 			
 			// check if we stepped off the edge
 			if ((guy.s.x >> 3) > starts[curr_build] + CURR_BUILD.width) { ground = -100; }
@@ -206,16 +224,22 @@ int main(void) {
 				builds[curr_build] = generate_build();
 
 				// create crate objects if need to
-				crates[curr_crate].s.obj = NULL;
-				crates[curr_crate].s.x = PIXEL(starts[curr_build]);
-				crates[curr_crate].s.height = PIXEL(CURR_BUILD.height);
-				crates[curr_crate].s.shape = ATTR0_SQUARE;
-				crates[curr_crate].s.size = ATTR1_SIZE_8;
-				crates[curr_crate].s.palbank = 0;
-				crates[curr_crate].s.tile = TILE_METER_MARK + 1;
+				crates[crate_tail].hit = false;
+				crates[crate_tail].vx = 0;
+				crates[crate_tail].vy = 0;
+				crates[crate_tail].ay = 0;
+				crates[crate_tail].s.obj = NULL;
+				crates[crate_tail].s.x = PIXEL(starts[curr_build]) + 100;
+				crates[crate_tail].s.height = PIXEL(CURR_BUILD.height) + PIXEL(1);
+				crates[crate_tail].s.shape = ATTR0_SQUARE;
+				crates[crate_tail].s.size = ATTR1_SIZE_8;
+				crates[crate_tail].s.palbank = 0;
+				crates[crate_tail].s.tile = TILE_METER_MARK + 1;
+				crates[crate_tail].valid = true;
+				DEBUGFMT("creating a crate at %d, %d", crates[crate_tail].s.x, crates[crate_tail].s.height);
 				
 				curr_build = (curr_build + 1) % BUILDS_AHEAD;
-				curr_crate = (curr_crate + 1) % MAX_CRATES;
+				crate_tail = (crate_tail + 1) % MAX_CRATES;
 				num_crates++;
 
 				// update ground level
@@ -306,11 +330,11 @@ int main(void) {
 		// move player
 		guy.vy += guy.ay;
 		guy.s.height += (int)guy.vy;
-		DEBUGFMT("new guy height: %d, vel: %d, ground: %d dist: %d", guy.s.height, (int)guy.vy, ground, guy.s.height - SPRITE_HEIGHT(guy.s) - ground);
 		
 		// apply camera y adjustments
-		if ((SCREEN_Y(guy.s, cam) > LOWER_SLACK) ||
-		    (SCREEN_Y(guy.s, cam) < UPPER_SLACK)) { 
+		if (((int)guy.vy != 0) && // without this check this hits the cpu
+		    ((SCREEN_Y(guy.s, cam) > LOWER_SLACK) ||
+		     (SCREEN_Y(guy.s, cam) < UPPER_SLACK))) { 
 			cam.y -= (int)guy.vy;
 			cam.y = CLAMP(cam.y, 0, PIXEL(WORLD_HEIGHT) - SCREEN_HEIGHT);
 		}
@@ -320,16 +344,25 @@ int main(void) {
 		place_sprite(&guy.s, &cam);
 
 		// apply crate attributes
-		for (int i = 0; i < MAX_CRATES; i++) {
-			if (crates[i].s.obj != NULL) {
-				if (crates[i].hit) {
-					// TODO: make crate fall
+		for (int i = 0; i < MAX_CRATES; i++) { // turn this into a circular buffer when
+			if (crates[i].valid) { // we start caring about efficiency
+				if (crates[i].ay) {
+					crates[i].vy += crates[i].ay;
+					crates[i].s.height += (int)crates[i].vy;
+					
+					crates[i].s.x += (int)crates[i].vx;
 				}
+				bool present_before = (crates[i].s.obj != NULL);
 				place_sprite(&crates[i].s, &cam);
+				if (!crates[i].s.obj && present_before) {
+					DEBUG("destructing a crate");
+					crates[i].valid = false;
+					num_crates--;
+				}
 			}
 		}
 
-		set_score(PIXEL(WORLD_HEIGHT) - SCREEN_HEIGHT - ground + cam.y);//cam.x >> 3);
+		set_score(num_crates);//cam.x >> 3);
 
 		// update bg regs
 		REG_BG0HOFS = cam.x;

@@ -3,6 +3,18 @@
 
 #include "engine.h"
 
+/*
+#define DEBUG(str) (nocash_puts(str))
+#define DEBUGFMT(fmt, ...) do {	  \
+		asprintf(&dbg_str, fmt, __VA_ARGS__); \
+		nocash_puts(dbg_str); \
+		free(dbg_str); \
+	} while (0)
+*/
+
+#define DEBUG(fmt, ...)
+#define DEBUGFMT(fmt, ...)
+
 // data structs
 typedef struct {
 	uint frame, start, len;
@@ -20,8 +32,9 @@ typedef struct {
 
 typedef struct {
 	sprite_t s;
-	float vy;
+	float vy, vx, ax, ay;
 	uint hit, style;
+	bool valid;
 } crate_t;
 
 typedef struct {
@@ -56,9 +69,8 @@ typedef struct {
 #define GROUND_THRESH 4
 
 #define CRATE_GRAV -.12
-#define CRATE_TERMINAL_VELOCITY 30*CRATE_GRAV
-#define CRATE_HIT_VY 1
-#define CRATE_HIT_VX 4
+#define CRATE_HIT_VX 6
+#define CRATE_HIT_VY 2
 
 #define BG1_SCROLL_RATE .5
 #define BG1_YOFFS 30

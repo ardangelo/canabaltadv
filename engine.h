@@ -2,16 +2,18 @@
 #define _ENGINE_H_
 
 char *dbg_str;
+
 /*
-#define DEBUG(str) (nocash_puts(str))
-#define DEBUGFMT(fmt, ...) do {	  \
+#define ENGINE_DEBUG(str) (nocash_puts(str))
+#define ENGINE_DEBUGFMT(fmt, ...) do {	  \
 		asprintf(&dbg_str, fmt, __VA_ARGS__); \
 		nocash_puts(dbg_str); \
 		free(dbg_str); \
 	} while (0)
 */
-#define DEBUG(fmt, ...)
-#define DEBUGFMT(fmt, ...)
+
+#define ENGINE_DEBUG(fmt, ...)
+#define ENGINE_DEBUGFMT(fmt, ...)
 
 // types
 typedef struct {
